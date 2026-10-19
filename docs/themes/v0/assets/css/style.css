@@ -1,0 +1,423 @@
+/* ==========================================================================
+   PAPER CUP — Thème v0 · style.css
+   Tokens du design system, polices, reset, typographie et mise en page.
+   Ordre du bundle : style → components → utilities → responsive.
+   ========================================================================== */
+
+/* ---------------------------------------------------------------- Polices
+   Auto-hébergées (OFL 1.1), sous-ensemble latin, axes variables. */
+@font-face {
+  font-family: 'Sora Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url('../fonts/sora-latin-wght-normal.woff2') format('woff2-variations'),
+    url('../fonts/sora-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'DM Sans Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 1000;
+  src: url('../fonts/dm-sans-latin-wght-normal.woff2') format('woff2-variations'),
+    url('../fonts/dm-sans-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* Police de repli aux métriques proches de Sora : limite le décalage (CLS) au chargement. */
+@font-face {
+  font-family: 'Sora Fallback';
+  src: local('Arial');
+  size-adjust: 112%;
+  ascent-override: 88%;
+  descent-override: 24%;
+  line-gap-override: 0%;
+}
+
+/* ----------------------------------------------------------------- Tokens */
+:root {
+  /* Couleurs — marque */
+  --color-primary: #1c1a17; /* Encre : titres, boutons secondaires, sections sombres */
+  --color-secondary: #c49a6c; /* Kraft : matière carton, illustrations */
+  --color-accent: #cc3d14; /* Vermillon d'impression : CTA, repères — 4,95:1 sur blanc */
+  --color-accent-hover: #ad320f;
+  --color-accent-ink: #aa320d; /* Vermillon « texte » : ≥ 4,65:1 sur toutes les surfaces claires */
+  --color-accent-soft: #f6dfd4;
+  --color-accent-on-dark: #ff7a52; /* 6,7:1 sur encre */
+
+  /* Couleurs — surfaces */
+  --color-background: #f5f0e8; /* Papier */
+  --color-surface: #fffdf9;
+  --color-surface-2: #efe7da;
+  --color-kraft-light: #e6d6bf;
+  --color-dark: #171512;
+  --color-dark-2: #24211c;
+
+  /* Couleurs — texte & traits */
+  --color-text: #1c1a17; /* 15,3:1 sur papier */
+  --color-muted: #6b645a; /* 5,15:1 sur papier */
+  --color-muted-strong: #5f584e; /* 5,3:1 sur kraft clair */
+  --color-on-dark: #f5f0e8;
+  --color-muted-on-dark: #b3aa9c; /* 7,5:1 sur encre */
+  --color-border: #ddd3c4;
+  --color-border-strong: #c9bca8;
+  --color-border-on-dark: rgb(245 240 232 / 0.14);
+
+  /* Couleurs — états */
+  --color-success: #2f7a4b;
+  --color-warning: #a86a12;
+  --color-danger: #b3261e;
+  --color-focus: #cc3d14;
+
+  /* Illustrations */
+  --dim-color: var(--color-accent);
+  --dim-text: var(--color-text);
+
+  /* Typographie */
+  --font-display: 'Sora Variable', 'Sora', 'Sora Fallback', ui-sans-serif, system-ui, -apple-system,
+    'Segoe UI', Roboto, Arial, sans-serif;
+  --font-body: 'DM Sans Variable', 'DM Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    Roboto, Arial, sans-serif;
+
+  --fs-display: clamp(2.65rem, 1.2rem + 5.4vw, 6rem);
+  --fs-h1: clamp(2.3rem, 1.45rem + 3.5vw, 4.4rem);
+  --fs-h2: clamp(1.9rem, 1.3rem + 2.4vw, 3.3rem);
+  --fs-h3: clamp(1.3rem, 1.14rem + 0.7vw, 1.7rem);
+  --fs-h4: clamp(1.075rem, 1.02rem + 0.25vw, 1.25rem);
+  --fs-lead: clamp(1.08rem, 1rem + 0.42vw, 1.32rem);
+  --fs-body: clamp(1rem, 0.97rem + 0.14vw, 1.0625rem);
+  --fs-small: 0.9375rem;
+  --fs-caption: 0.75rem;
+
+  --lh-display: 0.98;
+  --lh-heading: 1.1;
+  --lh-snug: 1.35;
+  --lh-body: 1.62;
+
+  --tracking-display: -0.045em;
+  --tracking-heading: -0.032em;
+  --tracking-caps: 0.14em;
+
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  /* Espacements (base 4 px) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --space-9: 6rem;
+  --space-10: 8rem;
+  --section-y: clamp(4.5rem, 2.6rem + 7vw, 9rem);
+
+  /* Conteneurs & grille */
+  --container: 1240px;
+  --container-wide: 1400px;
+  --container-narrow: 760px;
+  --gutter: clamp(1rem, 0.4rem + 2.6vw, 2.5rem);
+  --grid-gap: clamp(1rem, 0.6rem + 1.6vw, 2rem);
+
+  /* Formes */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 36px;
+  --radius-pill: 999px;
+
+  /* Ombres (teintées encre, jamais noires) */
+  --shadow-xs: 0 1px 2px rgb(28 26 23 / 0.06);
+  --shadow-sm: 0 1px 2px rgb(28 26 23 / 0.05), 0 4px 12px -4px rgb(28 26 23 / 0.1);
+  --shadow-md: 0 2px 4px rgb(28 26 23 / 0.04), 0 16px 32px -14px rgb(28 26 23 / 0.2);
+  --shadow-lg: 0 4px 8px rgb(28 26 23 / 0.04), 0 36px 64px -28px rgb(28 26 23 / 0.32);
+
+  /* Mouvement */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --dur-1: 150ms;
+  --dur-2: 260ms;
+  --dur-3: 450ms;
+  --dur-4: 800ms;
+
+  /* Composants */
+  --header-h: 72px;
+  --btn-h-sm: 42px;
+  --btn-h: 50px;
+  --btn-h-lg: 58px;
+  --tap: 44px;
+  --z-sticky: 40;
+  --z-header: 50;
+  --z-menu: 60;
+
+  color-scheme: light;
+}
+
+/* ------------------------------------------------------------------ Reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+* {
+  margin: 0;
+}
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-padding-top: calc(var(--header-h) + 1rem);
+}
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+body {
+  min-height: 100vh;
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
+}
+img,
+svg,
+video,
+canvas {
+  display: block;
+  max-width: 100%;
+}
+img {
+  height: auto;
+}
+input,
+button,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+button {
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+a {
+  color: inherit;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+:where(ul[role='list'], ol[role='list']) {
+  list-style: none;
+  padding: 0;
+}
+table {
+  border-collapse: collapse;
+}
+address {
+  font-style: normal;
+}
+[hidden] {
+  display: none !important;
+}
+::selection {
+  background: var(--color-accent);
+  color: #fff;
+}
+.svg-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------------ Focus */
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+main:focus {
+  outline: none;
+}
+
+/* ------------------------------------------------------------- Typographie */
+h1,
+h2,
+h3,
+h4,
+.display {
+  font-family: var(--font-display);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-heading);
+  letter-spacing: var(--tracking-heading);
+  text-wrap: balance;
+  color: inherit;
+}
+.display {
+  font-size: var(--fs-display);
+  line-height: var(--lh-display);
+  letter-spacing: var(--tracking-display);
+}
+h1 {
+  font-size: var(--fs-h1);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+}
+h2 {
+  font-size: var(--fs-h2);
+}
+h3 {
+  font-size: var(--fs-h3);
+  line-height: 1.2;
+  letter-spacing: -0.022em;
+}
+h4 {
+  font-size: var(--fs-h4);
+  line-height: 1.3;
+  letter-spacing: -0.012em;
+}
+p {
+  text-wrap: pretty;
+}
+.lead {
+  font-size: var(--fs-lead);
+  line-height: 1.55;
+  color: var(--color-muted);
+  max-width: 38em;
+}
+.small {
+  font-size: var(--fs-small);
+}
+.caption {
+  font-size: var(--fs-caption);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+.muted {
+  color: var(--color-muted);
+}
+strong {
+  font-weight: var(--fw-semibold);
+}
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  font-family: var(--font-display);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-accent-ink);
+  margin-bottom: var(--space-4);
+}
+.eyebrow__icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: none;
+}
+.eyebrow .ref {
+  /* Les références produit (« 12oz-M ») ne doivent jamais passer en capitales. */
+  text-transform: none;
+  letter-spacing: 0.04em;
+}
+.eyebrow--light {
+  color: var(--color-accent-on-dark);
+}
+.footnote {
+  font-size: var(--fs-caption);
+  color: var(--color-muted);
+  line-height: 1.5;
+  margin-top: var(--space-3);
+}
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------- Layout */
+.container {
+  width: min(100% - var(--gutter) * 2, var(--container));
+  margin-inline: auto;
+}
+.container--wide {
+  width: min(100% - var(--gutter) * 2, var(--container-wide));
+}
+.container--narrow {
+  width: min(100% - var(--gutter) * 2, var(--container-narrow));
+}
+.section {
+  position: relative;
+  padding-block: var(--section-y);
+}
+.section--tight {
+  padding-block: calc(var(--section-y) * 0.6);
+}
+.section--surface {
+  background: var(--color-surface);
+}
+.section--tinted {
+  background: var(--color-surface-2);
+}
+.section--kraft {
+  background: var(--color-kraft-light);
+  --color-muted: var(--color-muted-strong);
+}
+.section--dark {
+  background: var(--color-dark);
+  color: var(--color-on-dark);
+  --dim-text: var(--color-on-dark);
+  --dim-color: var(--color-accent-on-dark);
+}
+.section--dark .lead,
+.section--dark .muted {
+  color: var(--color-muted-on-dark);
+}
+.section-head {
+  display: grid;
+  gap: var(--space-4);
+  margin-bottom: clamp(2.5rem, 1.6rem + 3vw, 4.5rem);
+  max-width: 46rem;
+}
+.section-head h2 {
+  max-width: 18ch;
+}
+.section-head > p:not(.eyebrow) {
+  color: var(--color-muted);
+  max-width: 34em;
+}
+.section--dark .section-head > p:not(.eyebrow) {
+  color: var(--color-muted-on-dark);
+}
+.section-head .eyebrow {
+  margin-bottom: 0;
+}
+.section-head--split {
+  max-width: none;
+  align-items: end;
+}
+.section-head--center {
+  margin-inline: auto;
+  text-align: center;
+  justify-items: center;
+}
+.stack > * + * {
+  margin-top: var(--stack, var(--space-4));
+}

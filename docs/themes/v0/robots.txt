@@ -1,0 +1,6 @@
+# PAPER CUP — à placer à la racine du domaine de production.
+# Sur un environnement de recette, remplacer par « Disallow: / ».
+User-agent: *
+Allow: /
+
+Sitemap: https://www.papercup.com.tn/sitemap.xml

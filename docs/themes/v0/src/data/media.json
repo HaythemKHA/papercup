@@ -1,0 +1,524 @@
+{
+ "hero/gobelet-paper-cup": {
+  "ratio": 0.7855,
+  "variants": [
+   {
+    "w": 440,
+    "h": 560
+   },
+   {
+    "w": 720,
+    "h": 917
+   },
+   {
+    "w": 1040,
+    "h": 1324
+   }
+  ],
+  "alpha": true
+ },
+ "editorial/gobelets-paper-cup-bleus": {
+  "ratio": 1.4627,
+  "variants": [
+   {
+    "w": 400,
+    "h": 273
+   },
+   {
+    "w": 705,
+    "h": 482
+   }
+  ],
+  "alpha": true
+ },
+ "editorial/gabarit-impression": {
+  "ratio": 1.8433,
+  "variants": [
+   {
+    "w": 400,
+    "h": 217
+   },
+   {
+    "w": 800,
+    "h": 434
+   }
+  ],
+  "alpha": false
+ },
+ "editorial/gobelet-bar": {
+  "ratio": 1.7778,
+  "variants": [
+   {
+    "w": 640,
+    "h": 360
+   },
+   {
+    "w": 1100,
+    "h": 619
+   },
+   {
+    "w": 1600,
+    "h": 900
+   }
+  ],
+  "alpha": false
+ },
+ "products/gobelet-4-oz": {
+  "ratio": 1.5106,
+  "variants": [
+   {
+    "w": 480,
+    "h": 318
+   },
+   {
+    "w": 800,
+    "h": 530
+   },
+   {
+    "w": 1000,
+    "h": 662
+   }
+  ],
+  "alpha": false
+ },
+ "products/gobelet-6-5-oz": {
+  "ratio": 1.5106,
+  "variants": [
+   {
+    "w": 480,
+    "h": 318
+   },
+   {
+    "w": 800,
+    "h": 530
+   },
+   {
+    "w": 1000,
+    "h": 662
+   }
+  ],
+  "alpha": false
+ },
+ "products/gobelet-9-oz": {
+  "ratio": 1.5106,
+  "variants": [
+   {
+    "w": 480,
+    "h": 318
+   },
+   {
+    "w": 800,
+    "h": 530
+   },
+   {
+    "w": 1000,
+    "h": 662
+   }
+  ],
+  "alpha": false
+ },
+ "products/gobelet-12-oz": {
+  "ratio": 1.4286,
+  "variants": [
+   {
+    "w": 480,
+    "h": 336
+   },
+   {
+    "w": 800,
+    "h": 560
+   },
+   {
+    "w": 1000,
+    "h": 700
+   }
+  ],
+  "alpha": false
+ },
+ "products/couvercle": {
+  "ratio": 1.5106,
+  "variants": [
+   {
+    "w": 480,
+    "h": 318
+   },
+   {
+    "w": 800,
+    "h": 530
+   },
+   {
+    "w": 1000,
+    "h": 662
+   }
+  ],
+  "alpha": false
+ },
+ "products/agitateurs": {
+  "ratio": 1.5106,
+  "variants": [
+   {
+    "w": 480,
+    "h": 318
+   },
+   {
+    "w": 800,
+    "h": 530
+   },
+   {
+    "w": 1000,
+    "h": 662
+   }
+  ],
+  "alpha": false
+ },
+ "realisations/la-brioche": {
+  "ratio": 0.6664,
+  "variants": [
+   {
+    "w": 420,
+    "h": 630
+   },
+   {
+    "w": 760,
+    "h": 1140
+   }
+  ],
+  "alpha": false
+ },
+ "realisations/b-cafe": {
+  "ratio": 1.4936,
+  "variants": [
+   {
+    "w": 480,
+    "h": 321
+   },
+   {
+    "w": 900,
+    "h": 603
+   }
+  ],
+  "alpha": false
+ },
+ "realisations/galata-grill": {
+  "ratio": 1.0,
+  "variants": [
+   {
+    "w": 420,
+    "h": 420
+   },
+   {
+    "w": 800,
+    "h": 800
+   }
+  ],
+  "alpha": false
+ },
+ "realisations/gourmandise": {
+  "ratio": 0.6758,
+  "variants": [
+   {
+    "w": 420,
+    "h": 622
+   },
+   {
+    "w": 760,
+    "h": 1125
+   }
+  ],
+  "alpha": false
+ },
+ "realisations/switch-coffee-shop": {
+  "ratio": 1.4936,
+  "variants": [
+   {
+    "w": 480,
+    "h": 321
+   },
+   {
+    "w": 900,
+    "h": 603
+   }
+  ],
+  "alpha": false
+ },
+ "salons/sousse-2017-1": {
+  "ratio": 1.5974,
+  "variants": [
+   {
+    "w": 500,
+    "h": 313
+   }
+  ],
+  "alpha": false
+ },
+ "salons/sousse-2017-2": {
+  "ratio": 1.5528,
+  "variants": [
+   {
+    "w": 500,
+    "h": 322
+   }
+  ],
+  "alpha": false
+ },
+ "salons/sousse-2017-4": {
+  "ratio": 1.5823,
+  "variants": [
+   {
+    "w": 500,
+    "h": 316
+   }
+  ],
+  "alpha": false
+ },
+ "salons/sousse-2016-1": {
+  "ratio": 1.3333,
+  "variants": [
+   {
+    "w": 400,
+    "h": 300
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-1": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-2": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-3": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-4": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-5": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-6": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-7": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-9": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-10": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-11": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-13": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-14": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-15": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-16": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-17": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-18": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-19": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-20": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-21": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-22": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-23": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-24": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-25": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ },
+ "clients/client-88": {
+  "ratio": 3.5556,
+  "variants": [
+   {
+    "w": 320,
+    "h": 90
+   }
+  ],
+  "alpha": false
+ }
+}

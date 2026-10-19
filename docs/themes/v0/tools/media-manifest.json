@@ -1,0 +1,196 @@
+{
+  "source": "https://www.papercup.com.tn/solixy-cms-assets/",
+  "note": "Images d'origine publiées sur papercup.com.tn (récupérées le 2026-10-19). 'src' est relatif à 'source'.",
+  "items": [
+    {
+      "out": "hero/gobelet-paper-cup",
+      "src": "img/home/6.png",
+      "widths": [
+        440,
+        720,
+        1040
+      ],
+      "alpha": true,
+      "trim": true
+    },
+    {
+      "out": "editorial/gobelets-paper-cup-bleus",
+      "src": "img/apropos/paper-1.png",
+      "widths": [
+        400,
+        750
+      ],
+      "alpha": true,
+      "trim": true
+    },
+    {
+      "out": "editorial/gabarit-impression",
+      "src": "img/home/section_3.jpg",
+      "widths": [
+        400,
+        800
+      ]
+    },
+    {
+      "out": "editorial/gobelet-bar",
+      "src": "img/background/home-1.jpg",
+      "widths": [
+        640,
+        1100,
+        1600
+      ]
+    },
+    {
+      "out": "products/gobelet-4-oz",
+      "src": "img/collections/src_images/4oz/m2.jpg",
+      "widths": [
+        480,
+        800,
+        1000
+      ]
+    },
+    {
+      "out": "products/gobelet-6-5-oz",
+      "src": "img/collections/src_images/6.5oz/m18.jpg",
+      "widths": [
+        480,
+        800,
+        1000
+      ]
+    },
+    {
+      "out": "products/gobelet-9-oz",
+      "src": "img/collections/src_images/9oz/m12.jpg",
+      "widths": [
+        480,
+        800,
+        1000
+      ]
+    },
+    {
+      "out": "products/gobelet-12-oz",
+      "src": "img/collections/src_images/12oz/m11.jpg",
+      "widths": [
+        480,
+        800,
+        1000
+      ]
+    },
+    {
+      "out": "products/couvercle",
+      "src": "img/collections/src_images/cover/m1.jpg",
+      "widths": [
+        480,
+        800,
+        1000
+      ]
+    },
+    {
+      "out": "products/agitateurs",
+      "src": "img/collections/src_images/agitateur/m1.jpg",
+      "widths": [
+        480,
+        800,
+        1000
+      ]
+    },
+    {
+      "out": "realisations/la-brioche",
+      "src": "img/home/bottom-grid/33.png",
+      "widths": [
+        420,
+        760
+      ]
+    },
+    {
+      "out": "realisations/b-cafe",
+      "src": "img/home/bottom-grid/11.png",
+      "widths": [
+        480,
+        900
+      ]
+    },
+    {
+      "out": "realisations/galata-grill",
+      "src": "img/home/bottom-grid/22.png",
+      "widths": [
+        420,
+        800
+      ]
+    },
+    {
+      "out": "realisations/gourmandise",
+      "src": "img/home/bottom-grid/55.png",
+      "widths": [
+        420,
+        760
+      ]
+    },
+    {
+      "out": "realisations/switch-coffee-shop",
+      "src": "img/home/bottom-grid/77.png",
+      "widths": [
+        480,
+        900
+      ]
+    },
+    {
+      "out": "salons/sousse-2017-1",
+      "src": "img/news/news2017_1.jpg",
+      "widths": [
+        500
+      ]
+    },
+    {
+      "out": "salons/sousse-2017-2",
+      "src": "img/news/news2017_2.jpg",
+      "widths": [
+        500
+      ]
+    },
+    {
+      "out": "salons/sousse-2017-4",
+      "src": "img/news/news2017_4.jpg",
+      "widths": [
+        500
+      ]
+    },
+    {
+      "out": "salons/sousse-2016-1",
+      "src": "img/news/news2016_1.jpg",
+      "widths": [
+        400
+      ]
+    }
+  ],
+  "clients": {
+    "src": "img/logos/logo{n}.jpg",
+    "ids": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      9,
+      10,
+      11,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      88
+    ],
+    "width": 320
+  }
+}
