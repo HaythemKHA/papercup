@@ -1209,7 +1209,6 @@
               action="api/demande.php"
               method="post"
               enctype="multipart/form-data"
-              novalidate
               aria-labelledby="devis-title"
             >
               <input type="hidden" name="formulaire" value="devis" />
@@ -1271,7 +1270,7 @@
               </fieldset>
               <fieldset class="field">
                 <legend class="field__label">
-                  Format de gobelet carton <span class="req" aria-hidden="true">*</span>
+                  Format de gobelet carton <span class="req" aria-hidden="true" data-format-req>*</span>
                 </legend>
                 <div class="format-cards">
                   <label class="radio-card format-card"
@@ -1280,7 +1279,6 @@
                       name="format"
                       value="4oz"
                       id="f-format-4oz"
-                      required
                       aria-describedby="err-format"
                     /><span class="radio-card__body"
                       ><span class="format-card__cup" aria-hidden="true"
@@ -1564,7 +1562,7 @@
               </fieldset>
               <div class="field">
                 <label class="field__label" for="f-qty"
-                  >Quantité de gobelets <span class="req" aria-hidden="true">*</span></label
+                  ><span data-qty-label>Quantité de gobelets</span> <span class="req" aria-hidden="true">*</span></label
                 >
                 <input
                   class="input"
@@ -1573,7 +1571,7 @@
                   type="number"
                   inputmode="numeric"
                   min="1"
-                  step="500"
+                  step="1"
                   value="5000"
                   required
                   aria-describedby="f-qty-hint err-qty"
@@ -1753,16 +1751,6 @@
                     <use href="#i-arrow-right" />
                   </svg>
                 </button>
-                <noscript
-                  ><p class="form-note">
-                    <svg class="icon" width="24" height="24" aria-hidden="true" focusable="false">
-                      <use href="#i-info" /></svg
-                    ><span
-                      >JavaScript est désactivé : la demande est envoyée directement au serveur du site. En cas d’échec,
-                      écrivez à paper.cup@hotmail.fr ou appelez le (+216) 75 290 088.</span
-                    >
-                  </p></noscript
-                >
                 <p class="form-note">
                   <svg class="icon" width="24" height="24" aria-hidden="true" focusable="false">
                     <use href="#i-info" /></svg
@@ -1770,8 +1758,8 @@
                     data-form-note
                     data-note-connected="Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace privé, réservé à son équipe."
                     data-note-offline="Ce formulaire n’envoie aucune donnée par lui-même : il prépare un récapitulatif que vous transmettez ensuite par e-mail (paper.cup@hotmail.fr) ou par téléphone ((+216) 75 290 088)."
-                    >Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace
-                    privé, réservé à son équipe.</span
+                    >Votre demande est adressée à PAPER CUP. Vous pouvez aussi écrire à paper.cup@hotmail.fr ou appeler
+                    le (+216) 75 290 088.</span
                   >
                 </p>
               </div>

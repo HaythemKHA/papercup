@@ -16,8 +16,8 @@
 declare(strict_types=1);
 
 // Images très grandes refusées : elles alourdiraient l'aperçu de l'administration (décompression).
-const PC_MAX_IMAGE_SIDE = 10000;
-const PC_MAX_IMAGE_PIXELS = 40_000_000;
+const PC_MAX_IMAGE_SIDE = 12000;
+const PC_MAX_IMAGE_PIXELS = 60_000_000; // photos de 48 Mpx acceptées
 // Au-delà, l'administration n'affiche pas l'image en miniature (lien d'aperçu seulement).
 const PC_THUMB_MAX_PIXELS = 16_000_000;
 
@@ -188,7 +188,7 @@ function pc_check_structure(string $ext, string $path): ?string
                 return 'Image illisible ou endommagée.';
             }
             if ($info[0] < 1 || $info[1] < 1 || $info[0] > PC_MAX_IMAGE_SIDE || $info[1] > PC_MAX_IMAGE_SIDE || $info[0] * $info[1] > PC_MAX_IMAGE_PIXELS) {
-                return 'Dimensions de l’image non prises en charge.';
+                return 'Image trop grande (12 000 px de côté et 60 mégapixels au maximum) : réduisez-la avant de l’envoyer.';
             }
             return null;
         case 'pdf':
@@ -204,7 +204,7 @@ function pc_check_structure(string $ext, string $path): ?string
                 ? null
                 : 'Fichier EPS invalide.';
         case 'svg':
-            return pc_svg_is_safe((string) file_get_contents($path)) ? null : 'Ce SVG contient des éléments non autorisés (script, lien externe…). Exportez-le en PDF ou en PNG.';
+            return pc_svg_is_safe((string) file_get_contents($path)) ? null : 'Ce SVG contient des éléments non autorisés (script, animation, lien ou ressource externe…). Exportez-le en PDF ou en PNG.';
     }
     return 'Format non accepté.';
 }
@@ -218,19 +218,26 @@ function pc_svg_is_safe(string $svg): bool
     if (!preg_match('/<svg[\s>]/i', $svg) || !mb_check_encoding($svg, 'UTF-8')) {
         return false;
     }
+    // Uniquement UTF-8 / ASCII, sans caractère de contrôle : un autre encodage déclaré (ISO-2022-JP…) ou une
+    // séquence d'échappement permettrait de masquer un nom d'élément aux contrôles ci-dessous.
+    if (preg_match('/<\?xml[^>]*encoding\s*=\s*["\'](?!(utf-?8|us-ascii)["\'])/i', $svg) || preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', $svg)) {
+        return false;
+    }
+    // Contrôles appliqués au texte brut ET au texte dont les références de caractères (&#106;…) sont décodées.
+    $decoded = html_entity_decode($svg, ENT_QUOTES | ENT_XML1, 'UTF-8');
     $forbidden = [
         '/<!DOCTYPE/i', '/<!ENTITY/i', '/<\?xml-stylesheet/i',
-        // Références de caractères refusées : elles permettraient de masquer « javascript: » ou un nom d'élément.
-        '/&#/', '/&(?!(amp|lt|gt|quot|apos);)[a-z0-9]+;/i',
-        // Éléments actifs, y compris préfixés (svg:script) et animations (animate, set) capables de modifier un lien.
-        '/<\s*([\w.-]+:)?(script|foreignObject|iframe|embed|object|audio|video|handler|listener|animate\w*|set|discard)\b/i',
+        // Entités nommées hors XML (nécessitent une DTD, refusée) : jamais légitimes ici.
+        '/&(?!(amp|lt|gt|quot|apos);)[a-z][a-z0-9]*;/i',
+        // Éléments actifs, y compris préfixés (svg:script), et animations capables de modifier un attribut (animate, set).
+        '/<\s*([\w.-]+:)?(script|foreignObject|iframe|embed|object|audio|video|handler|listener|animate|set|discard)\b/i',
         '/\son[a-z]+\s*=/i',
         '/(java|vb)script\s*:/i', '/data\s*:\s*(?!image\/(png|jpe?g|webp|gif);base64,)/i',
         '/(xlink:)?href\s*=\s*["\']\s*(?!#|data:image\/(png|jpe?g|webp|gif);base64,)/i',
         '/@import/i', '/url\(\s*["\']?\s*(?!#)/i',
     ];
     foreach ($forbidden as $pattern) {
-        if (preg_match($pattern, $svg)) {
+        if (preg_match($pattern, $svg) || preg_match($pattern, $decoded)) {
             return false;
         }
     }

@@ -241,7 +241,7 @@ export function studio(r, { id = 'studio', current = '12oz', headingLevel = 3 } 
     .join('');
   const api = `${r}${site.api}`;
   const req = `<span class="req" aria-hidden="true">*</span>`;
-  return `<form class="studio" id="${id}" data-studio data-brand-form data-href="${r}contact.html" data-endpoint="${api}" data-phone="${site.phone.display}" action="${api}" method="post" enctype="multipart/form-data" novalidate aria-labelledby="${id}-title" style="--print:${INKS[0].value}">
+  return `<form class="studio" id="${id}" data-studio data-brand-form data-href="${r}contact.html" data-endpoint="${api}" data-phone="${site.phone.display}" action="${api}" method="post" enctype="multipart/form-data" aria-labelledby="${id}-title" style="--print:${INKS[0].value}">
   <input type="hidden" name="formulaire" value="essai">
   <input type="hidden" name="idempotence" value="" data-idempotence>
   ${honeypot(id)}
@@ -287,12 +287,12 @@ export function studio(r, { id = 'studio', current = '12oz', headingLevel = 3 } 
         <legend class="studio__contact-title">Vos coordonnées</legend>
         <div class="field">
           <label class="field__label" for="${id}-nom">Votre nom ${req}</label>
-          <input class="input input--on-dark" id="${id}-nom" name="nom" type="text" autocomplete="name" maxlength="80" aria-describedby="${id}-err-nom" data-required-when-connected>
+          <input class="input input--on-dark" id="${id}-nom" name="nom" type="text" autocomplete="name" maxlength="80" aria-describedby="${id}-err-nom" required data-required-when-connected>
           ${fieldError(`${id}-err-nom`, 'nom')}
         </div>
         <div class="field">
           <label class="field__label" for="${id}-tel">Téléphone ${req}</label>
-          <input class="input input--on-dark" id="${id}-tel" name="telephone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" aria-describedby="${id}-err-tel" data-required-when-connected>
+          <input class="input input--on-dark" id="${id}-tel" name="telephone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" aria-describedby="${id}-err-tel" required data-required-when-connected>
           ${fieldError(`${id}-err-tel`, 'telephone')}
         </div>
         <div class="field">
@@ -308,8 +308,7 @@ export function studio(r, { id = 'studio', current = '12oz', headingLevel = 3 } 
     </div>
     <div class="studio__actions" data-connected-only>
       <button class="btn btn--accent btn--lg" type="submit" data-label-connected="Envoyer ma demande"><span data-submit-label>Envoyer ma demande</span> ${icon('arrow-right')}</button>
-      <noscript><p class="studio__note">${icon('info')}<span>JavaScript est désactivé : la demande est envoyée directement au serveur du site. En cas d’échec, écrivez à ${site.email} ou appelez le ${site.phone.display}.</span></p></noscript>
-      <p class="studio__note">${icon('info')}<span data-form-note data-note-connected="Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace privé, réservé à son équipe." data-note-offline="">Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace privé, réservé à son équipe.</span></p>
+      <p class="studio__note">${icon('info')}<span data-form-note data-note-connected="Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace privé, réservé à son équipe." data-note-offline="">Votre demande est adressée à PAPER CUP. Vous pouvez aussi écrire à ${site.email} ou appeler le ${site.phone.display}.</span></p>
     </div>
     <div class="studio__result" data-brand-result tabindex="-1" role="status" hidden>
       <span class="studio__result-badge" aria-hidden="true">${icon('check')}</span>

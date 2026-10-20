@@ -17,8 +17,10 @@ if (PHP_VERSION_ID < 80100) {
 }
 
 // Jamais d'erreur affichée au visiteur (chemins, valeurs) : elles vont au journal du serveur.
-ini_set('display_errors', '0');
-ini_set('log_errors', '1');
+if (function_exists('ini_set')) {
+    ini_set('display_errors', '0');
+    ini_set('log_errors', '1');
+}
 
 const PC_FORMATS = ['4oz', '6-5oz', '9oz', '12oz'];
 const PC_FORMAT_LABELS = ['4oz' => '4 oz', '6-5oz' => '6,5 oz', '9oz' => '9 oz', '12oz' => '12 oz'];
@@ -255,7 +257,7 @@ function pc_format_bytes(int $bytes): string
 function pc_site_url(): ?string
 {
     $configured = rtrim(trim((string) pc_config()['site_url']), '/');
-    return preg_match('#^https?://[A-Za-z0-9.\-]+(:\d+)?(/[A-Za-z0-9._~/\-]*)?$#', $configured) ? $configured : null;
+    return preg_match('#^https?://[A-Za-z0-9.\-]+(:\d+)?(/[A-Za-z0-9._~/\-]*)?$#i', $configured) ? $configured : null;
 }
 
 function pc_is_https(): bool
@@ -280,6 +282,14 @@ function pc_client_ip(): string
     if (str_contains($ip, ':')) {
         $bin = @inet_pton($ip);
         if ($bin !== false && strlen($bin) === 16) {
+            // Adresse IPv4 vue par un serveur à double pile (::ffff:a.b.c.d) : l'adresse IPv4 elle-même.
+            if (substr($bin, 0, 12) === str_repeat("\0", 10) . "\xff\xff") {
+                return (string) inet_ntop(substr($bin, 12));
+            }
+            // Adresses spéciales (::1, ::) : telles quelles.
+            if (substr($bin, 0, 8) === str_repeat("\0", 8)) {
+                return $ip;
+            }
             return bin2hex(substr($bin, 0, 8)) . '::/64';
         }
     }

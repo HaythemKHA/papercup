@@ -84,23 +84,30 @@ function pc_secret(): string
     }
     $file = $root . '/secret.key';
     $read = fn () => trim((string) @file_get_contents($file));
-    if (strlen($read()) < 32) {
-        // Écrit dans un fichier temporaire complet, puis le publie : jamais de secret vide ou tronqué.
-        // link() échoue si un autre processus l'a créé entre-temps : on relit alors le sien.
-        $tmp = $file . '.tmp-' . bin2hex(random_bytes(6));
-        if (@file_put_contents($tmp, bin2hex(random_bytes(32))) === 64) {
-            @chmod($tmp, 0600);
-            if (!@link($tmp, $file) && strlen($read()) < 32) {
-                @rename($tmp, $file);
-            }
+    // Création exclusive (mode « x ») : un seul processus écrit le secret, les autres attendent qu'il soit
+    // complet. Un fichier resté vide (écriture interrompue) est remplacé après 10 secondes.
+    for ($attempt = 0; $attempt < 40; $attempt++) {
+        $value = $read();
+        if (strlen($value) >= 32) {
+            return $secret = $value;
         }
-        @unlink($tmp);
+        clearstatcache(true, $file);
+        if (!is_file($file)) {
+            $fh = @fopen($file, 'x');
+            if ($fh !== false) {
+                fwrite($fh, bin2hex(random_bytes(32)));
+                fflush($fh);
+                fclose($fh);
+                @chmod($file, 0600);
+                continue;
+            }
+        } elseif ((int) @filemtime($file) < time() - 10) {
+            @unlink($file);
+            continue;
+        }
+        usleep(50000);
     }
-    $value = $read();
-    if (strlen($value) < 32) {
-        throw new RuntimeException('Secret de stockage illisible.');
-    }
-    return $secret = $value;
+    throw new RuntimeException('Secret de stockage illisible.');
 }
 
 /* --------------------------------------------------------------- JSON */
@@ -205,6 +212,8 @@ function pc_request_delete(string $id): bool
     if ($dir === null) {
         return false;
     }
+    $freed = array_sum(array_map(fn ($f) => (int) ($f['size'] ?? 0), pc_read_json($dir . '/request.json')['files'] ?? []));
+    pc_storage_used_add(-$freed);
     foreach ([$dir . '/files', $dir] as $d) {
         foreach (scandir($d) ?: [] as $entry) {
             if ($entry !== '.' && $entry !== '..' && is_file($d . '/' . $entry)) {
@@ -345,15 +354,54 @@ function pc_disk_ok(int $incoming): bool
     return $free - $incoming >= (int) pc_config()['min_free_bytes'];
 }
 
-/** Volume des pièces jointes conservées (d'après les fiches des demandes). */
-function pc_storage_used(): int
+/**
+ * Volume des pièces jointes conservées (d'après les fiches des demandes). Le total est mis en cache
+ * une minute : un envoi n'oblige pas à relire toutes les fiches.
+ */
+function pc_storage_used(bool $fresh = false): int
 {
     $base = pc_storage_path('requests');
+    if ($base === null) {
+        return 0;
+    }
+    $cache = pc_read_json($base . '/../usage.json');
+    if (!$fresh && $cache !== null && (int) ($cache['at'] ?? 0) > time() - 60) {
+        return (int) $cache['bytes'];
+    }
     $total = 0;
-    foreach ($base === null ? [] : (glob($base . '/PC-*/request.json') ?: []) as $file) {
+    foreach (glob($base . '/PC-*/request.json') ?: [] as $file) {
         foreach ((pc_read_json($file)['files'] ?? []) as $f) {
             $total += (int) ($f['size'] ?? 0);
         }
     }
+    pc_write_json($base . '/../usage.json', ['bytes' => $total, 'at' => time()]);
     return $total;
+}
+
+/** Ajoute (ou retire) des octets au total en cache, sans attendre son recalcul. */
+function pc_storage_used_add(int $bytes): void
+{
+    $base = pc_storage_path('requests');
+    $cache = $base === null ? null : pc_read_json($base . '/../usage.json');
+    if ($cache !== null) {
+        pc_write_json($base . '/../usage.json', ['bytes' => max(0, (int) $cache['bytes'] + $bytes), 'at' => (int) $cache['at']]);
+    }
+}
+
+/* ------------------------------------------- Demandes successives (même clé) */
+
+/** Dernière demande créée avec une clé d'idempotence donnée (renvoi modifié après une coupure). */
+function pc_key_latest(string $key): ?string
+{
+    $dir = pc_storage_path('idempotency');
+    $data = $dir === null ? null : pc_read_json($dir . '/latest-' . hash_hmac('sha256', $key, pc_secret()) . '.json');
+    return $data !== null && (int) ($data['at'] ?? 0) > time() - 86400 && preg_match(PC_ID_PATTERN, (string) ($data['id'] ?? '')) ? $data['id'] : null;
+}
+
+function pc_key_remember(string $key, string $id): void
+{
+    $dir = pc_storage_path('idempotency');
+    if ($dir !== null) {
+        pc_write_json($dir . '/latest-' . hash_hmac('sha256', $key, pc_secret()) . '.json', ['id' => $id, 'at' => time()]);
+    }
 }

@@ -24,8 +24,13 @@ header('Content-Type: text/html; charset=utf-8');
 if ($https) {
     header('Strict-Transport-Security: max-age=31536000');
 } elseif (!empty($config['force_https'])) {
-    $host = preg_replace('/[^A-Za-z0-9.\-:]/', '', (string) parse_url((string) pc_site_url(), PHP_URL_HOST) ?: (string) ($_SERVER['HTTP_HOST'] ?? ''));
-    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && $host !== '') {
+    // Hôte (et port) : ceux de site_url ; à défaut l'hôte de la requête, sans son port (port HTTP).
+    // Derrière un proxy qui termine TLS sans transmettre HTTPS=on, ne pas activer cette option (voir README).
+    $site = parse_url((string) pc_site_url());
+    $host = is_array($site) && isset($site['host'])
+        ? $site['host'] . (isset($site['port']) ? ':' . $site['port'] : '')
+        : preg_replace('/:\d+$/', '', preg_replace('/[^A-Za-z0-9.\-:\[\]]/', '', (string) ($_SERVER['HTTP_HOST'] ?? '')));
+    if (in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET', 'HEAD'], true) && $host !== '') {
         header('Location: https://' . $host . (string) ($_SERVER['REQUEST_URI'] ?? '/admin/'), true, 301);
         exit;
     }
@@ -50,6 +55,29 @@ function admin_page(string $title, string $body, int $status = 200, bool $signed
     exit;
 }
 
+/** Appareil déjà connecté avec succès (cookie signé, 180 jours) : reste autorisé à se connecter pendant une attaque. */
+function admin_known_device(array $config): bool
+{
+    $raw = $_COOKIE['pc_admin_device'] ?? '';
+    if (!is_string($raw) || !preg_match('/^(\d{10})\.([a-f0-9]{64})$/', $raw, $m)) {
+        return false;
+    }
+    return (int) $m[1] > time() - 180 * 86400
+        && hash_equals(hash_hmac('sha256', 'device|' . $config['admin_user'] . '|' . $m[1], pc_secret()), $m[2]);
+}
+
+function admin_remember_device(array $config, string $path, bool $https): void
+{
+    $t = (string) time();
+    setcookie('pc_admin_device', $t . '.' . hash_hmac('sha256', 'device|' . $config['admin_user'] . '|' . $t, pc_secret()), [
+        'expires' => time() + 180 * 86400,
+        'path' => $path,
+        'secure' => $https || !empty($config['force_https']),
+        'httponly' => true,
+        'samesite' => 'Strict',
+    ]);
+}
+
 function admin_redirect(string $to): never
 {
     header('Location: ' . $to, true, 303);
@@ -72,8 +100,10 @@ if (pc_storage_root() === null) {
 
 /* ------------------------------------------------------------ Session */
 
-// session.auto_start : la session ouverte par défaut (nom et cookie génériques) est refermée avant la nôtre.
-if (session_status() === PHP_SESSION_ACTIVE) {
+// session.auto_start : la session ouverte par défaut (nom et cookie génériques) est refermée, puis la nôtre
+// est reprise d'après son propre cookie (sinon PHP réutiliserait l'identifiant de la session automatique).
+$autoStarted = session_status() === PHP_SESSION_ACTIVE;
+if ($autoStarted) {
     session_write_close();
 }
 session_name('pc_admin');
@@ -84,9 +114,15 @@ session_set_cookie_params([
     'httponly' => true,
     'samesite' => 'Strict',
 ]);
-ini_set('session.use_strict_mode', '1');
-ini_set('session.use_only_cookies', '1');
-ini_set('session.use_trans_sid', '0');
+if (function_exists('ini_set')) {
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.use_only_cookies', '1');
+    ini_set('session.use_trans_sid', '0');
+}
+if ($autoStarted) {
+    $own = $_COOKIE['pc_admin'] ?? '';
+    session_id(is_string($own) && preg_match('/^[A-Za-z0-9,-]{22,256}$/', $own) ? $own : session_create_id());
+}
 session_start();
 
 if (empty($_SESSION['csrf'])) {
@@ -116,10 +152,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 
     if ($action === 'login') {
         $window = (int) $config['login_window'];
-        // Tentative comptée AVANT la vérification, sous verrou : des essais simultanés ne dépassent pas le plafond.
-        // Plafond par client (préfixe /64 en IPv6) et plafond global (10 fois le plafond individuel).
         $maxTries = max(1, (int) $config['login_max_attempts']);
-        if (!pc_rate_take('login', $window, $maxTries) || !pc_rate_take('login-all', $window, $maxTries * 10, true)) {
+        // Par client (préfixe /64 en IPv6) : tentative comptée AVANT la vérification, sous verrou, pour que des
+        // essais simultanés ne dépassent pas le plafond. Remis à zéro après une connexion réussie.
+        // Pour l'ensemble du site : seuls les ÉCHECS sont comptés ; au-delà de 10 fois le plafond individuel,
+        // seuls les appareils déjà connectés avec succès (cookie signé) peuvent encore essayer : une attaque
+        // distribuée ne peut pas bloquer l'équipe.
+        $globalFails = pc_rate('login-fail-all', $window, false, null, true);
+        if (!pc_rate_take('login', $window, $maxTries) || ($globalFails >= $maxTries * 10 && !admin_known_device($config))) {
             pc_log('admin login throttled');
             $_SESSION['flash'] = 'Trop de tentatives. Réessayez dans ' . (int) ceil($window / 60) . ' minutes.';
             admin_redirect($adminBase);
@@ -130,6 +170,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $passOk = password_verify($password, (string) $config['admin_password_hash']); // toujours évalué : temps constant
         if ($userOk && $passOk) {
             pc_rate_reset('login');
+            admin_remember_device($config, $adminBase, $https);
             session_regenerate_id(true);
             $_SESSION['auth'] = ['user' => $user, 'at' => $now, 'seen' => $now];
             $_SESSION['csrf'] = bin2hex(random_bytes(32));
@@ -137,6 +178,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $next = pc_param($_POST, 'suite');
             admin_redirect($adminBase . (preg_match(PC_ID_PATTERN, $next) ? '?demande=' . rawurlencode($next) : ''));
         }
+        pc_rate('login-fail-all', $window, true, null, true);
         pc_log('admin login failed');
         $_SESSION['flash'] = 'Identifiant ou mot de passe incorrect.';
         admin_redirect($adminBase . ($requested !== '' ? '?demande=' . rawurlencode($requested) : ''));
@@ -204,9 +246,9 @@ if (isset($_GET['fichier'])) {
 $warning = pc_storage_is_public()
     ? '<p class="admin-flash admin-flash--danger" role="alert">Attention : le dossier de stockage est situé sous la racine web. Déplacez-le hors de la racine (option <code>storage_dir</code>).</p>'
     : '';
-if ((string) $config['site_url'] === '') {
-    // Sans adresse configurée, les liens des notifications sont construits à partir de l'en-tête Host de la requête.
-    $warning .= '<p class="admin-flash admin-flash--danger" role="alert">Configurez l’adresse publique du site (option <code>site_url</code>, ex. https://www.papercup.com.tn) : les liens des e-mails de notification en dépendent.</p>';
+if (pc_site_url() === null) {
+    // Sans adresse valide, les notifications ne contiennent aucun lien (jamais construit d'après l'en-tête Host).
+    $warning .= '<p class="admin-flash admin-flash--danger" role="alert">Adresse publique du site absente ou invalide (option <code>site_url</code>, format attendu : https://www.papercup.com.tn) : les e-mails de notification ne contiennent aucun lien.</p>';
 }
 
 /* ------------------------------------------------------------- Détail */
@@ -258,7 +300,9 @@ if ($requested !== '') {
     $body = '<p class="admin-back"><a href="./">← Toutes les demandes</a></p>' . $flash . $warning
         . '<section class="admin-card"><header class="admin-head"><div><p class="eyebrow">' . pc_h(PC_FORM_LABELS[$r['fields']['formulaire']] ?? '') . '</p>'
         . '<h1>' . pc_h($r['id']) . '</h1><p class="admin-muted">Reçue le ' . pc_h(date('d/m/Y à H:i', strtotime($r['created_at']) ?: 0))
-        . (($r['meta']['page'] ?? '') !== '' ? ' depuis ' . pc_h($r['meta']['page']) : '') . ' · ' . pc_h($notifLabels[$r['notification']['status'] ?? ''] ?? '') . '</p></div>'
+        . (($r['meta']['page'] ?? '') !== '' ? ' depuis ' . pc_h($r['meta']['page']) : '') . ' · ' . pc_h($notifLabels[$r['notification']['status'] ?? ''] ?? '') . '</p>'
+        . (!empty($r['meta']['replaces']) ? '<p class="admin-warn">Version modifiée par le client après une coupure de connexion : remplace <a href="./?demande=' . rawurlencode((string) $r['meta']['replaces']) . '">' . pc_h((string) $r['meta']['replaces']) . '</a>.</p>' : '')
+        . '</div>'
         . '<form class="admin-status" method="post" action="./"><input type="hidden" name="csrf" value="' . pc_h($csrf) . '"><input type="hidden" name="action" value="status">'
         . '<input type="hidden" name="demande" value="' . pc_h($r['id']) . '"><label class="field__label" for="a-status">Statut</label>'
         . '<select class="input" id="a-status" name="statut">' . $options . '</select><button class="btn btn--sm btn--accent" type="submit">Enregistrer</button></form></header>'
@@ -299,7 +343,8 @@ foreach (array_slice($list, 0, 200) as $r) {
         . '<td>' . pc_h($who) . '<br><span class="admin-muted">' . pc_h($f['telephone'] ?? '') . '</span></td>'
         . '<td>' . ($n > 0 ? '<span class="admin-pill admin-pill--files">' . $n . ' fichier' . ($n > 1 ? 's' : '') . '</span>' : '<span class="admin-muted">—</span>') . '</td>'
         . '<td><span class="admin-pill admin-pill--' . pc_h($r['status']) . '">' . pc_h($statusLabel($r['status'])) . '</span>'
-        . (($r['notification']['status'] ?? '') === 'echec' ? '<br><span class="admin-warn">E-mail non envoyé</span>' : '') . '</td></tr>';
+        . (($r['notification']['status'] ?? '') === 'echec' ? '<br><span class="admin-warn">E-mail non envoyé</span>' : '')
+        . (!empty($r['meta']['replaces']) ? '<br><span class="admin-warn">Remplace ' . pc_h((string) $r['meta']['replaces']) . '</span>' : '') . '</td></tr>';
 }
 $table = $tbody === ''
     ? '<p class="admin-muted">Aucune demande pour le moment.</p>'

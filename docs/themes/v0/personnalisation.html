@@ -1150,7 +1150,6 @@
             action="api/demande.php"
             method="post"
             enctype="multipart/form-data"
-            novalidate
             aria-labelledby="perso-studio-title"
             style="--print: #cc3d14"
           >
@@ -1657,6 +1656,7 @@
                       autocomplete="name"
                       maxlength="80"
                       aria-describedby="perso-studio-err-nom"
+                      required
                       data-required-when-connected
                     />
                     <p class="field__error" id="perso-studio-err-nom" data-error-for="nom" hidden>
@@ -1678,6 +1678,7 @@
                       inputmode="tel"
                       maxlength="20"
                       aria-describedby="perso-studio-err-tel"
+                      required
                       data-required-when-connected
                     />
                     <p class="field__error" id="perso-studio-err-tel" data-error-for="telephone" hidden>
@@ -1718,16 +1719,6 @@
                     <use href="#i-arrow-right" />
                   </svg>
                 </button>
-                <noscript
-                  ><p class="studio__note">
-                    <svg class="icon" width="24" height="24" aria-hidden="true" focusable="false">
-                      <use href="#i-info" /></svg
-                    ><span
-                      >JavaScript est désactivé : la demande est envoyée directement au serveur du site. En cas d’échec,
-                      écrivez à paper.cup@hotmail.fr ou appelez le (+216) 75 290 088.</span
-                    >
-                  </p></noscript
-                >
                 <p class="studio__note">
                   <svg class="icon" width="24" height="24" aria-hidden="true" focusable="false">
                     <use href="#i-info" /></svg
@@ -1735,8 +1726,8 @@
                     data-form-note
                     data-note-connected="Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace privé, réservé à son équipe."
                     data-note-offline=""
-                    >Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace
-                    privé, réservé à son équipe.</span
+                    >Votre demande est adressée à PAPER CUP. Vous pouvez aussi écrire à paper.cup@hotmail.fr ou appeler
+                    le (+216) 75 290 088.</span
                   >
                 </p>
               </div>

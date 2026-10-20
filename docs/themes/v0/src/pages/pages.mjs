@@ -274,7 +274,7 @@ ${ctaBand(r)}`;
 const formatCards = () =>
   products
     .map(
-      (p, i) => `<label class="radio-card format-card"><input type="radio" name="format" value="${p.id}" id="f-format-${p.id}"${p.id === '12oz' ? ' checked' : ''}${i === 0 ? ' required' : ''} aria-describedby="err-format"><span class="radio-card__body"><span class="format-card__cup" aria-hidden="true">${cup(p, { scale: 0.62, set: products, uid: 'fc' })}</span><strong>${p.label}</strong><span>${p.cl} cl</span></span></label>`,
+      (p, i) => `<label class="radio-card format-card"><input type="radio" name="format" value="${p.id}" id="f-format-${p.id}"${p.id === '12oz' ? ' checked' : ''} aria-describedby="err-format"><span class="radio-card__body"><span class="format-card__cup" aria-hidden="true">${cup(p, { scale: 0.62, set: products, uid: 'fc' })}</span><strong>${p.label}</strong><span>${p.cl} cl</span></span></label>`,
     )
     .join('');
 
@@ -333,7 +333,7 @@ export const contactPage = {
     </div>
 
     <div>
-      <form class="quote-form" id="devis" data-quote-form data-endpoint="${r}${site.api}" data-phone="${site.phone.display}" action="${r}${site.api}" method="post" enctype="multipart/form-data" novalidate aria-labelledby="devis-title">
+      <form class="quote-form" id="devis" data-quote-form data-endpoint="${r}${site.api}" data-phone="${site.phone.display}" action="${r}${site.api}" method="post" enctype="multipart/form-data" aria-labelledby="devis-title">
         <input type="hidden" name="formulaire" value="devis">
         <input type="hidden" name="idempotence" value="" data-idempotence>
         ${honeypot('devis')}
@@ -355,13 +355,13 @@ export const contactPage = {
           ${errorSlot('err-type')}
         </fieldset>
         <fieldset class="field">
-          <legend class="field__label">Format de gobelet carton <span class="req" aria-hidden="true">*</span></legend>
+          <legend class="field__label">Format de gobelet carton <span class="req" aria-hidden="true" data-format-req>*</span></legend>
           <div class="format-cards">${formatCards()}</div>
           ${errorSlot('err-format')}
         </fieldset>
         <div class="field">
-          <label class="field__label" for="f-qty">Quantité de gobelets <span class="req" aria-hidden="true">*</span></label>
-          <input class="input" id="f-qty" name="quantite" type="number" inputmode="numeric" min="1" step="500" value="${site.minOrder}" required aria-describedby="f-qty-hint err-qty">
+          <label class="field__label" for="f-qty"><span data-qty-label>Quantité de gobelets</span> <span class="req" aria-hidden="true">*</span></label>
+          <input class="input" id="f-qty" name="quantite" type="number" inputmode="numeric" min="1" step="1" value="${site.minOrder}" required aria-describedby="f-qty-hint err-qty">
           <p class="field__hint" id="f-qty-hint" data-qty-hint>Indiquez le nombre total de gobelets souhaités.</p>
           ${errorSlot('err-qty')}
         </div>
@@ -403,8 +403,7 @@ export const contactPage = {
         })}
         <div class="form-actions">
           <button class="btn btn--accent btn--lg" type="submit" data-label-connected="Envoyer ma demande" data-label-offline="Générer mon récapitulatif"><span data-submit-label>Envoyer ma demande</span> ${icon('arrow-right')}</button>
-          <noscript><p class="form-note">${icon('info')}<span>JavaScript est désactivé : la demande est envoyée directement au serveur du site. En cas d’échec, écrivez à ${site.email} ou appelez le ${site.phone.display}.</span></p></noscript>
-          <p class="form-note">${icon('info')}<span data-form-note data-note-connected="Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace privé, réservé à son équipe." data-note-offline="Ce formulaire n’envoie aucune donnée par lui-même : il prépare un récapitulatif que vous transmettez ensuite par e-mail (${site.email}) ou par téléphone (${site.phone.display}).">Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace privé, réservé à son équipe.</span></p>
+          <p class="form-note">${icon('info')}<span data-form-note data-note-connected="Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace privé, réservé à son équipe." data-note-offline="Ce formulaire n’envoie aucune donnée par lui-même : il prépare un récapitulatif que vous transmettez ensuite par e-mail (${site.email}) ou par téléphone (${site.phone.display}).">Votre demande est adressée à PAPER CUP. Vous pouvez aussi écrire à ${site.email} ou appeler le ${site.phone.display}.</span></p>
         </div>
       </form>
 

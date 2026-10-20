@@ -2597,7 +2597,12 @@ a.contact-card:hover .contact-card__arrow {
   gap: 0.6rem;
 }
 .radio-cards--3 {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 640px) {
+  .radio-cards--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 .format-cards {
   display: grid;

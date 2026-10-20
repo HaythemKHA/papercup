@@ -16,6 +16,7 @@ import { join, dirname, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHmac, createHash } from 'node:crypto';
 import { deflateSync } from 'node:zlib';
+import { request } from 'node:http';
 
 const THEME = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PASSWORD = 'motdepasse-de-test-123';
@@ -56,11 +57,11 @@ const file = (buf, name, type = 'application/octet-stream') => [new Blob([buf], 
 
 /* ------------------------------------------------------------- Serveur PHP */
 
-async function startServer({ port, env = {}, ini = {} }) {
+async function startServer({ port, env = {}, ini = {}, host = '127.0.0.1' }) {
   const storage = mkdtempSync(join(tmpdir(), 'pc-test-'));
   const args = ['-d', 'display_errors=0', '-d', 'log_errors=0'];
   for (const [k, v] of Object.entries({ upload_max_filesize: '1M', post_max_size: '3M', max_file_uploads: '20', ...ini })) args.push('-d', `${k}=${v}`);
-  args.push('-S', `127.0.0.1:${port}`, '-t', THEME, join(THEME, 'tests/router.php'));
+  args.push('-S', `${host}:${port}`, '-t', THEME, join(THEME, 'tests/router.php'));
   const proc = spawn('php', args, {
     env: {
       ...process.env,
@@ -355,7 +356,6 @@ describe('Durcissement (revue de sécurité)', () => {
 
   test('en-tête Host falsifié : les liens de la notification gardent l’adresse configurée', async () => {
     // fetch() impose l'en-tête Host : envoi HTTP brut.
-    const { request } = await import('node:http');
     const boundary = 'pcboundary';
     const parts = Object.entries(devis({ societe: 'Host SARL' })).map(([k, v]) => `--${boundary}\r\nContent-Disposition: form-data; name="${k}"\r\n\r\n${v}\r\n`);
     const body = Buffer.concat([Buffer.from(parts.join('')), Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="fichiers[]"; filename="host.png"\r\nContent-Type: image/png\r\n\r\n`), PNG, Buffer.from(`\r\n--${boundary}--\r\n`)]);
@@ -412,9 +412,9 @@ describe('Durcissement (revue de sécurité)', () => {
   });
 
   test('image démesurée refusée (dimensions)', async () => {
-    const r = await post(srv.base, devis(), [file(png(10001, 1), 'bandeau.png')]);
+    const r = await post(srv.base, devis(), [file(png(12001, 1), 'bandeau.png')]);
     assert.equal(r.status, 422);
-    assert.match(r.data.files[0].message, /Dimensions/);
+    assert.match(r.data.files[0].message, /trop grande.*12 000 px/);
   });
 
   test('« Autre emballage » : format facultatif, pas de minimum gobelets', async () => {
@@ -448,6 +448,146 @@ describe('Stockage plein', () => {
   test('plafond de stockage atteint : fichiers refusés (507), demande sans fichier acceptée', async () => {
     assert.equal((await post(capped.base, devis(), [file(PNG, 'logo.png')])).status, 507);
     assert.equal((await post(capped.base, devis({ message: 'sans fichier' }))).status, 201);
+  });
+});
+
+describe('Durcissement (vérification des correctifs)', () => {
+  let noLink;
+  let auto;
+  let capped;
+  before(async () => {
+    noLink = await startServer({ port: 8202, ini: { disable_functions: 'link,symlink,ini_set' } });
+    auto = await startServer({ port: 8203, ini: { 'session.auto_start': '1' } });
+    capped = await startServer({ port: 8204, env: { PC_GLOBAL_RATE_MAX: '2' } });
+  });
+  after(() => {
+    noLink.stop();
+    auto.stop();
+    capped.stop();
+  });
+
+  test('hébergement sans link() ni ini_set() : installation neuve fonctionnelle', async () => {
+    const r = await post(noLink.base, devis(), [file(PNG, 'logo.png')]);
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    assert.ok(readFileSync(join(noLink.storage, 'secret.key'), 'utf8').trim().length === 64);
+    assert.equal(readdirSync(noLink.storage).filter((f) => f.includes('.tmp-')).length, 0);
+  });
+
+  test('session.auto_start activé : connexion à l’administration possible', async () => {
+    const res = await fetch(auto.base + '/admin/');
+    const cookies = res.headers.getSetCookie().map((c) => c.split(';')[0]);
+    const csrf = (await res.text()).match(/name="csrf" value="([a-f0-9]{64})"/)[1];
+    const login = await fetch(auto.base + '/admin/', {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { Cookie: cookies.join('; '), 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ csrf, action: 'login', utilisateur: 'papercup', mot_de_passe: PASSWORD }),
+    });
+    const jar = new Map(cookies.map((c) => c.split('=')));
+    for (const c of login.headers.getSetCookie()) {
+      const [k, v] = c.split(';')[0].split('=');
+      jar.set(k, v);
+    }
+    const page = await (await fetch(auto.base + '/admin/', { headers: { Cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; ') } })).text();
+    assert.match(page, /Demandes reçues/);
+  });
+
+  test('plafond global : seulement pour les envois avec fichiers, message distinct', async () => {
+    assert.equal((await post(capped.base, devis({ message: 'f1' }), [file(PNG, 'a.png')])).status, 201);
+    assert.equal((await post(capped.base, devis({ message: 'f2' }), [file(PNG, 'b.png')])).status, 201);
+    const third = await post(capped.base, devis({ message: 'f3' }), [file(PNG, 'c.png')]);
+    assert.equal(third.status, 503);
+    assert.equal(third.data.error, 'busy');
+    assert.match(third.data.message, /sans pièce jointe/);
+    assert.equal((await post(capped.base, devis({ message: 'sans fichier' }))).status, 201);
+  });
+
+  test('version modifiée après une coupure : enregistrée comme remplaçant la précédente', async () => {
+    const key = 'cle-remplacement-0123456789';
+    const a = await post(capped.base, devis({ idempotence: key, message: 'Avant' }));
+    const b = await post(capped.base, devis({ idempotence: key, message: 'Après' }));
+    assert.equal(b.data.replaces, a.data.id);
+    assert.equal(loadRequest(capped.storage, b.data.id).meta.replaces, a.data.id);
+    const eml = outbox(capped.storage).find((f) => f.startsWith(b.data.id));
+    assert.match(decodeEml(readFileSync(join(capped.storage, 'outbox', eml), 'utf8')).body, new RegExp('Remplace\\s+: ' + a.data.id));
+  });
+
+  test('page d’erreur sans JavaScript : retour au formulaire de devis (#devis)', async () => {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(devis({ nom: '' }))) fd.append(k, v);
+    const res = await fetch(capped.base + '/api/demande.php', { method: 'POST', body: fd, headers: { Referer: capped.base + '/contact.html' } });
+    assert.equal(res.status, 422);
+    assert.match(await res.text(), /href="\/contact\.html#devis"/);
+  });
+
+  test('adresses : IPv4 vue en IPv6 (double pile) distinguée, IPv6 regroupée par /64', () => {
+    const out = execFileSync('php', ['-r', `require '${THEME}/api/lib/bootstrap.php'; foreach (['::ffff:1.2.3.4', '::ffff:5.6.7.8', '2001:db8:1:2::5', '2001:db8:1:2:ffff::9', '::1'] as $ip) { $_SERVER['REMOTE_ADDR'] = $ip; echo pc_client_ip(), "\\n"; }`]).toString().trim().split('\n');
+    assert.deepEqual(out, ['1.2.3.4', '5.6.7.8', '20010db800010002::/64', '20010db800010002::/64', '::1']);
+  });
+
+  test('SVG (si activé) : encodage, contrôle et références de caractères', () => {
+    const cases = {
+      '<svg><text>PAPER&#xa0;CUP Caf&#xE9;</text><animateTransform attributeName="transform" type="rotate"/></svg>': true,
+      '<?xml version="1.0" encoding="ISO-2022-JP"?><svg><scr\u001b(Bipt>x</scr\u001b(Bipt></svg>': false,
+      '<svg><a href="&#106;avascript:alert(1)">x</a></svg>': false,
+      '<svg><a href="#x"><set attributeName="href" to="javascript:alert(1)"/></a></svg>': false,
+      '<svg><svg:script>1</svg:script></svg>': false,
+    };
+    const php = `require '${THEME}/api/lib/bootstrap.php'; foreach (json_decode(stream_get_contents(STDIN), true) as $svg) { echo pc_svg_is_safe($svg) ? '1' : '0'; }`;
+    const res = execFileSync('php', ['-r', php], { input: JSON.stringify(Object.keys(cases)) }).toString();
+    assert.equal(res, Object.values(cases).map((v) => (v ? '1' : '0')).join(''));
+  });
+
+  test('FAQPage JSON-LD : texte propre (espaces, entités, liens retirés)', () => {
+    const html = readFileSync(join(THEME, 'faq.html'), 'utf8');
+    const json = JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g).map((b) => b.replace(/<[^>]+>/g, '')).find((b) => b.includes('FAQPage')));
+    const text = JSON.stringify(json);
+    assert.doesNotMatch(text, /&nbsp;|&amp;/);
+    assert.doesNotMatch(text, /\.[A-ZÉ][a-z]/, 'phrases collées');
+    assert.doesNotMatch(text, /Voir les autres emballages/);
+  });
+});
+
+describe('Connexion : attaque distribuée', () => {
+  let srv;
+  before(async () => {
+    srv = await startServer({ port: 8205, host: '0.0.0.0' });
+  });
+  after(() => srv.stop());
+
+  // Requêtes depuis des adresses locales différentes (127.0.0.x) pour simuler plusieurs clients.
+  const call = (from, method, path, cookies, body) =>
+    new Promise((resolve, reject) => {
+      const req = request({ host: '127.0.0.1', port: 8205, localAddress: from, method, path, headers: { Cookie: cookies.join('; '), ...(body ? { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body) } : {}) } }, (res) => {
+        let t = '';
+        res.on('data', (c) => (t += c));
+        res.on('end', () => resolve({ status: res.statusCode, cookies: (res.headers['set-cookie'] || []).map((c) => c.split(';')[0]), text: t }));
+      });
+      req.on('error', reject);
+      req.end(body);
+    });
+  const attempt = async (from, password, extra = []) => {
+    const page = await call(from, 'GET', '/admin/', extra);
+    const cookies = [...extra, ...page.cookies];
+    const csrf = page.text.match(/name="csrf" value="([a-f0-9]{64})"/)[1];
+    const res = await call(from, 'POST', '/admin/', cookies, new URLSearchParams({ csrf, action: 'login', utilisateur: 'papercup', mot_de_passe: password }).toString());
+    const all = [...cookies, ...res.cookies];
+    const after = await call(from, 'GET', '/admin/', [...new Map(all.map((c) => c.split('='))).entries()].map(([k, v]) => `${k}=${v}`));
+    return { ok: /Demandes reçues/.test(after.text), throttled: /Trop de tentatives/.test(after.text), cookies: all };
+  };
+
+  test('l’équipe déjà connectée sur un appareil n’est pas bloquée par une attaque distribuée', async () => {
+    const team = await attempt('127.0.0.50', PASSWORD);
+    assert.ok(team.ok, 'connexion initiale');
+    const device = team.cookies.filter((c) => c.startsWith('pc_admin_device='));
+    assert.equal(device.length, 1);
+    for (let ip = 2; ip <= 11; ip++) {
+      for (let i = 0; i < 5; i++) await attempt(`127.0.0.${ip}`, 'faux-' + i);
+    }
+    const stranger = await attempt('127.0.0.60', PASSWORD);
+    assert.ok(stranger.throttled && !stranger.ok, 'appareil inconnu bloqué pendant l’attaque');
+    const known = await attempt('127.0.0.51', PASSWORD, device);
+    assert.ok(known.ok, 'appareil connu toujours autorisé');
   });
 });
 

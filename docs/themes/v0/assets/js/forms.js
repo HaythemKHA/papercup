@@ -126,7 +126,7 @@
   /** Message d'échec à afficher (les saisies et les fichiers restent dans le formulaire). */
   PC.sendError = function (res, phone) {
     if (res.data && res.data.message) return res.data.message;
-    if (res.status === 0) return 'L’envoi n’a pas abouti (connexion interrompue ou trop lente). Vos informations et vos fichiers sont conservés : renvoyez la demande, elle ne sera pas enregistrée deux fois.';
+    if (res.status === 0) return 'L’envoi n’a pas abouti (connexion interrompue ou trop lente). Vos informations et vos fichiers sont conservés : renvoyez la demande telle quelle, elle ne sera pas enregistrée deux fois. Si vous la modifiez, la nouvelle version sera transmise en remplacement de la précédente.';
     if (res.status === 413) return 'L’envoi dépasse la taille acceptée par le serveur. Retirez un ou plusieurs fichiers, puis renvoyez votre demande.';
     return 'L’envoi a échoué. Vos informations sont conservées : réessayez ou appelez le ' + phone + '.';
   };
@@ -136,6 +136,22 @@
     var el = form.querySelector('[data-idempotence]');
     if (!el) return;
     if (renew || !el.value) el.value = PC.uid();
+  };
+
+  /** Texte de confirmation : doublon évité, version de remplacement, ou message du serveur. */
+  var sentText = function (data, phone) {
+    var t = data.duplicate ? 'Cette demande avait déjà été enregistrée : elle n’a pas été envoyée une seconde fois.' : data.message;
+    if (data.replaces) t += ' Cette version remplace la demande ' + data.replaces + ', reçue juste avant la coupure.';
+    if (!data.notified) t += ' Pour un traitement rapide, vous pouvez aussi appeler le ' + phone + '.';
+    return t;
+  };
+
+  /** Bouton d'envoi occupé (configuration en cours de chargement ou envoi). */
+  var busy = function (btn, label, on, text) {
+    btn.disabled = on;
+    if (on) btn.setAttribute('aria-busy', 'true');
+    else btn.removeAttribute('aria-busy');
+    if (label && text) label.textContent = text;
   };
 
   /** Liste des fichiers pour un récapitulatif texte. */
@@ -167,6 +183,8 @@
     var attach = PC.attachFor(form);
     var connected = false;
     var sending = false;
+    // Validation assurée par le script (messages accessibles) ; sans JavaScript, celle du navigateur s'applique.
+    form.noValidate = true;
 
     /* Envoi direct si l'API répond ; sinon mode préparation (récapitulatif), comme avant. */
     var setMode = function (cfg) {
@@ -216,6 +234,28 @@
       return typeValue() === 'autre';
     };
     var TYPE_LABELS = { personnalise: 'Gobelet personnalisé', standard: 'Gobelet standard', autre: 'Autre emballage' };
+
+    // « Autre emballage » : aucun format de gobelet imposé (il reste possible d'en choisir un), libellés adaptés.
+    var formatReq = PC.$('[data-format-req]', form);
+    var qtyLabel = PC.$('[data-qty-label]', form);
+    var qtyLabelDefault = qtyLabel ? qtyLabel.textContent : '';
+    var lastFormat = '12oz';
+    var applyType = function (keepFormat) {
+      var other = isOther();
+      var cur = form.querySelector('input[name="format"]:checked');
+      if (other && cur && !keepFormat) {
+        lastFormat = cur.value;
+        cur.checked = false;
+      } else if (!other && !cur) {
+        setRadio('format', lastFormat);
+      }
+      if (formatReq) formatReq.hidden = other;
+      if (qtyLabel) qtyLabel.textContent = other ? 'Quantité' : qtyLabelDefault;
+    };
+    form.addEventListener('change', function (e) {
+      if (e.target.name === 'type') applyType(false);
+    });
+    applyType(Boolean(params.get('format')));
 
     var updateQtyHint = function () {
       if (!qtyHint) return;
@@ -408,7 +448,7 @@
         mailto.hidden = Boolean(sent);
         mailto.href =
           'mailto:' + mailto.getAttribute('data-email') +
-          '?subject=' + encodeURIComponent('Demande de devis — gobelets en carton') +
+          '?subject=' + encodeURIComponent(isOther() ? 'Demande de devis — emballages' : 'Demande de devis — gobelets en carton') +
           '&body=' + encodeURIComponent(summary.replace(/ /g, ' '));
       }
       if (editBtn) editBtn.textContent = sent ? 'Faire une autre demande' : 'Modifier ma demande';
@@ -453,8 +493,10 @@
       e.preventDefault();
       if (sending || pending) return;
       pending = true;
+      busy(submitBtn, submitLabel, true, 'Chargement…');
       ready.then(function () {
         pending = false;
+        busy(submitBtn, submitLabel, false, submitBtn.getAttribute(connected ? 'data-label-connected' : 'data-label-offline'));
         if (sending) return;
         var errors = validate();
         if (attach && attach.hasErrors()) {
@@ -486,8 +528,7 @@
             var ref = res.data.id;
             showResult(
               'Demande envoyée',
-              (res.data.duplicate ? 'Cette demande avait déjà été enregistrée : elle n’a pas été envoyée une seconde fois.' : res.data.message) +
-                ' Référence : ' + ref + '.' + (res.data.notified ? '' : ' Pour un traitement rapide, vous pouvez aussi appeler le ' + phone + '.'),
+              sentText(res.data, phone) + ' Référence : ' + ref + '.',
               buildSummary(ref, res.data.files || []),
               true,
             );
@@ -542,6 +583,7 @@
       var result = PC.$('[data-brand-result]', form);
       var connected = false;
       var sending = false;
+      form.noValidate = true;
 
       var setMode = function (cfg) {
         connected = Boolean(cfg);
@@ -642,8 +684,10 @@
         e.preventDefault();
         if (sending || pending) return;
         pending = true;
+        busy(submitBtn, submitLabel, true, 'Chargement…');
         ready.then(function () {
           pending = false;
+          busy(submitBtn, submitLabel, false, submitBtn.getAttribute('data-label-connected'));
           if (sending) return;
           if (!connected) {
             // Sans service d'envoi : la demande se poursuit dans le formulaire de devis.
@@ -668,9 +712,7 @@
             setSending(false);
             if (res.data && res.data.ok) {
               PC.$('[data-result-ref]', result).textContent = res.data.id;
-              PC.$('[data-result-text]', result).textContent =
-                (res.data.duplicate ? 'Cette demande avait déjà été enregistrée : elle n’a pas été envoyée une seconde fois.' : res.data.message) +
-                (res.data.notified ? '' : ' Pour un traitement rapide, vous pouvez aussi appeler le ' + phone + '.');
+              PC.$('[data-result-text]', result).textContent = sentText(res.data, phone);
               form.classList.add('is-sent');
               result.hidden = false;
               result.focus();

@@ -8,7 +8,7 @@
  * (mode préparation, sans API), puis vérifie interface, envoi, erreurs, reprise et accessibilité.
  */
 import { spawn, execFileSync } from 'node:child_process';
-import { createServer } from 'node:http';
+import { createServer, request as httpRequest } from 'node:http';
 import { mkdtempSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve, extname, normalize } from 'node:path';
@@ -29,8 +29,10 @@ const TMP = mkdtempSync(join(tmpdir(), 'pc-e2e-'));
 const STORAGE = join(TMP, 'data');
 const PHP_PORT = 8195;
 const STATIC_PORT = 8196;
+const PROXY_PORT = 8206;
 const PHP = `http://127.0.0.1:${PHP_PORT}`;
 const STATIC = `http://127.0.0.1:${STATIC_PORT}`;
+const PROXY = `http://127.0.0.1:${PROXY_PORT}`;
 
 /* ------------------------------------------------------------- Fichiers */
 const crcTable = Array.from({ length: 256 }, (_, n) => {
@@ -91,6 +93,24 @@ const staticServer = createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': TYPES[extname(file)] || 'application/octet-stream' });
   res.end(readFileSync(file));
 }).listen(STATIC_PORT, '127.0.0.1');
+
+// Mandataire qui simule une coupure réseau réelle : la requête (fichiers compris) atteint le serveur,
+// qui l'enregistre, mais la connexion du navigateur est coupée avant la réponse.
+let cutNext = false;
+const proxy = createServer((req, res) => {
+  const cut = cutNext && req.method === 'POST' && req.url.startsWith('/api/demande.php');
+  if (cut) cutNext = false;
+  const up = httpRequest({ host: '127.0.0.1', port: PHP_PORT, method: req.method, path: req.url, headers: req.headers }, (upRes) => {
+    if (cut) {
+      upRes.resume();
+      upRes.on('end', () => req.socket.destroy());
+      return;
+    }
+    res.writeHead(upRes.statusCode, upRes.headers);
+    upRes.pipe(res);
+  });
+  req.pipe(up);
+}).listen(PROXY_PORT, '127.0.0.1');
 
 for (let i = 0; i < 50; i++) {
   try {
@@ -203,62 +223,52 @@ try {
   ok('Refus serveur : renvoi après retrait du fichier refusé', requests().length === before + 1);
 
   /* ------------------------- Coupure réseau après traitement : pas de doublon */
-  await p.click('[data-quote-edit]');
+  await p.goto(PROXY + '/contact.html');
+  await p.waitForFunction(() => document.querySelector('#devis').classList.contains('is-connected'));
+  await fillContact(p);
   await p.fill('#f-msg', 'Test de coupure réseau');
-  await p.setInputFiles('#devis-files-input', [LOGO]);
+  await p.setInputFiles('#devis-files-input', [LOGO, PDF]);
   before = requests().length;
-  let cut = true;
-  await p.route('**/api/demande.php', async (route) => {
-    if (route.request().method() === 'POST' && cut) {
-      cut = false;
-      await route.fetch(); // le serveur reçoit et enregistre la demande…
-      return route.abort('connectionreset'); // …mais la réponse n'arrive jamais.
-    }
-    return route.continue();
-  });
+  cutNext = true;
   await p.click('#devis [type=submit]');
   await p.waitForSelector('#devis [data-form-errors]:not([hidden])');
-  ok('Coupure réseau : erreur affichée, saisie conservée', /interrompue/.test(await p.innerText('#devis [data-form-errors]')) && (await p.inputValue('#f-msg')) === 'Test de coupure réseau' && (await p.locator('#devis .attach__item').count()) === 1);
+  ok('Coupure réseau : la demande a bien atteint le serveur (fichiers compris)', requests().length === before + 1 && load(requests().sort().slice(-1)[0]) && true);
+  ok('Coupure réseau : erreur affichée, saisie et fichiers conservés', /interrompue/.test(await p.innerText('#devis [data-form-errors]')) && (await p.inputValue('#f-msg')) === 'Test de coupure réseau' && (await p.locator('#devis .attach__item').count()) === 2);
   await p.click('#devis [type=submit]');
   await p.waitForSelector('[data-quote-result]:not([hidden])');
-  ok('Coupure réseau : nouvel essai sans doublon (même référence)', requests().length === before + 1, `${requests().length - before} demande(s)`);
-  await p.unroute('**/api/demande.php');
+  ok('Coupure réseau : nouvel essai sans doublon', requests().length === before + 1 && /déjà été enregistrée/.test(await p.innerText('[data-result-text]')), `${requests().length - before} demande(s)`);
+  ok('Coupure réseau : fichiers listés d’après la réponse du serveur', /Fichiers transmis :[\s\S]*logo-client\.png[\s\S]*brief\.pdf/.test(await p.innerText('[data-quote-summary]')));
 
-  /* ----------------------- Coupure réseau puis saisie modifiée : nouvelle demande */
+  /* ----------------------- Coupure réseau puis saisie modifiée : remplacement signalé */
   await p.click('[data-quote-edit]');
   await p.fill('#f-msg', 'Avant modification');
   before = requests().length;
-  cut = true;
-  await p.route('**/api/demande.php', async (route) => {
-    if (route.request().method() === 'POST' && cut) {
-      cut = false;
-      await route.fetch();
-      return route.abort('connectionreset');
-    }
-    return route.continue();
-  });
+  cutNext = true;
   await p.click('#devis [type=submit]');
   await p.waitForSelector('#devis [data-form-errors]:not([hidden])');
+  const firstRef = requests().filter((id) => load(id).fields.message === 'Avant modification')[0];
   await p.fill('#f-msg', 'Après modification');
   await p.click('#devis [type=submit]');
   await p.waitForSelector('[data-quote-result]:not([hidden])');
-  const refEdit = ((await p.innerText('[data-result-text]')).match(/PC-\d{8}-[A-Z2-9]{5}/) || [])[0];
-  ok('Saisie modifiée après une coupure : la version envoyée est bien celle confirmée', refEdit && load(refEdit).fields.message === 'Après modification' && /Après modification/.test(await p.innerText('[data-quote-summary]')), refEdit);
-  await p.unroute('**/api/demande.php');
+  const refEdit = ((await p.innerText('[data-result-text]')).match(/Référence : (PC-\d{8}-[A-Z2-9]{5})/) || [])[1];
+  ok('Saisie modifiée après une coupure : version confirmée = version envoyée', refEdit && load(refEdit).fields.message === 'Après modification' && /Après modification/.test(await p.innerText('[data-quote-summary]')), refEdit);
+  ok('Saisie modifiée après une coupure : remplacement signalé au visiteur et enregistré', Boolean(firstRef) && load(refEdit).meta.replaces === firstRef && (await p.innerText('[data-result-text]')).includes('remplace la demande ' + firstRef) && requests().length === before + 2);
 
   /* ---------------------------------------------- Autre emballage (sans format) */
   await p.click('[data-quote-edit]');
   await p.click('label:has(#f-type-autre)');
-  await p.evaluate(() => document.querySelectorAll('#devis input[name="format"]').forEach((r) => (r.checked = false)));
+  ok('« Autre emballage » : aucun format imposé, libellés adaptés', (await p.locator('#devis input[name="format"]:checked').count()) === 0 && (await p.innerText('[data-qty-label]')) === 'Quantité' && (await p.isHidden('[data-format-req]')));
   await p.fill('#f-qty', '300');
   await p.fill('#f-msg', 'Pochettes personnalisées taille 2');
   before = requests().length;
   await p.click('#devis [type=submit]');
   await p.waitForSelector('[data-quote-result]:not([hidden])');
   const refOther = ((await p.innerText('[data-result-text]')).match(/PC-\d{8}-[A-Z2-9]{5}/) || [])[0];
-  ok('« Autre emballage » : envoyé sans format ni minimum gobelets', refOther && load(refOther).fields.type === 'autre' && /Autre emballage/.test(await p.innerText('[data-quote-summary]')));
+  ok('« Autre emballage » : envoyé sans format ni minimum gobelets', refOther && load(refOther).fields.type === 'autre' && load(refOther).fields.format === '' && /Autre emballage/.test(await p.innerText('[data-quote-summary]')) && !/Format/.test(await p.innerText('[data-quote-summary]')));
   await p.goto(PHP + '/contact.html?type=autre#devis');
-  ok('« Autre emballage » : pré-rempli depuis les liens de la gamme', await p.isChecked('#f-type-autre'));
+  ok('« Autre emballage » : pré-rempli depuis les liens de la gamme, sans format coché', (await p.isChecked('#f-type-autre')) && (await p.locator('#devis input[name="format"]:checked').count()) === 0);
+  await p.click('label:has(#f-type-perso)');
+  ok('Retour à « Personnalisé » : format par défaut rétabli', await p.isChecked('#f-format-12oz'));
 
   /* ------------------------------------------------- Double clic sur l'envoi */
   await fillContact(p);
@@ -312,6 +322,19 @@ try {
   ok('Essai sans fichier : envoyé', requests().length === before + 1 && load(await p.innerText('#home-studio [data-result-ref]')).files.length === 0);
   await p.close();
 
+  /* -------------------------- Envoi pendant le chargement de la configuration */
+  p = await newPage();
+  await p.route('**/api/demande.php', async (route) => {
+    if (route.request().method() === 'GET') await new Promise((r) => setTimeout(r, 1500));
+    return route.continue();
+  });
+  await p.goto(PHP + '/contact.html');
+  await p.click('#devis [type=submit]');
+  ok('Configuration en cours de chargement : bouton occupé, un seul traitement', (await p.$eval('#devis [type=submit]', (b) => b.disabled && b.getAttribute('aria-busy') === 'true')));
+  await p.waitForSelector('#devis [data-form-errors]:not([hidden])');
+  ok('Configuration chargée : validation effectuée, bouton rétabli', !(await p.$eval('#devis [type=submit]', (b) => b.disabled)));
+  await p.close();
+
   /* ------------------------------------------- Mode préparation (sans PHP) */
   p = await newPage();
   await p.goto(STATIC + '/contact.html');
@@ -335,6 +358,9 @@ try {
   p = await newPage({ javaScriptEnabled: false });
   await p.goto(PHP + '/contact.html');
   ok('Sans JS : champ fichier natif utilisable', await p.isVisible('#devis-files-input'));
+  await p.click('#devis [type=submit]');
+  await p.waitForTimeout(300);
+  ok('Sans JS : nom et téléphone requis par le navigateur (aucun envoi incomplet)', p.url().endsWith('/contact.html') && (await p.$eval('#f-name', (e) => e.matches(':invalid'))));
   await p.fill('#f-name', 'Client Sans JS');
   await p.fill('#f-phone', '75 290 088');
   await p.setInputFiles('#devis-files-input', [LOGO]);
@@ -351,6 +377,7 @@ try {
   await browser.close();
   php.kill();
   staticServer.close();
+  proxy.close();
   rmSync(TMP, { recursive: true, force: true });
 }
 

@@ -143,7 +143,7 @@ function pc_request_origin_page(): string
  * Crée la demande : dossier, fichiers, données, puis notification interne.
  * La demande est enregistrée avant l'envoi de l'e-mail : un échec d'envoi ne perd rien.
  */
-function pc_request_create(array $fields, array $validFiles): array
+function pc_request_create(array $fields, array $validFiles, ?string $replaces = null): array
 {
     [$id, $dir] = pc_new_request_dir();
     try {
@@ -163,6 +163,8 @@ function pc_request_create(array $fields, array $validFiles): array
             'page' => pc_request_origin_page(),
             'client' => substr(hash_hmac('sha256', pc_client_ip(), pc_secret()), 0, 16),
             'user_agent' => pc_clean($_SERVER['HTTP_USER_AGENT'] ?? '', 200),
+            // Renvoi modifié par le client après une coupure : demande envoyée juste avant avec la même clé.
+            'replaces' => $replaces,
         ],
         'notification' => ['status' => 'en-attente'],
         'history' => [['at' => date('c'), 'event' => 'creation']],
@@ -171,6 +173,7 @@ function pc_request_create(array $fields, array $validFiles): array
         pc_request_delete($id);
         throw new RuntimeException('Enregistrement de la demande impossible.');
     }
+    pc_storage_used_add(array_sum(array_map(fn ($f) => (int) $f['size'], $files)));
     // La demande est déjà enregistrée : un échec de notification (mail() désactivé…) ne doit ni la perdre
     // ni provoquer une erreur qui pousserait le visiteur à la renvoyer.
     try {

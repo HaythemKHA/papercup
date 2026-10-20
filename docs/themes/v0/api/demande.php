@@ -28,6 +28,9 @@ function pc_respond(int $status, array $payload, bool $json): never
     $ok = !empty($payload['ok']);
     $back = pc_request_origin_page();
     $back = $back !== '' ? $back : '../contact.html';
+    if (pc_param($_POST, 'formulaire') === 'devis' && !str_contains($back, '#')) {
+        $back .= '#devis';
+    }
     $details = [];
     foreach ($payload['fields'] ?? [] as $message) {
         $details[] = $message;
@@ -177,26 +180,42 @@ try {
         ? ['key:' . $key . '|' . pc_content_fingerprint($fields, $validFiles), 86400]
         : [pc_request_fingerprint($fields, $validFiles), 600];
 
-    $result = pc_idempotent($idemKey, $ttl, function () use ($fields, $validFiles, $window, $maxCreate): array {
-        // Plafonds vérifiés et consommés atomiquement : par client, puis pour l'ensemble du site.
+    $baseKey = preg_match('/^[A-Za-z0-9-]{16,64}$/', $key) ? 'base:' . $key : null;
+    $result = pc_idempotent($idemKey, $ttl, function () use ($fields, $validFiles, $window, $maxCreate, $baseKey): array {
+        // Plafond global (ensemble du site) : uniquement pour les envois AVEC fichiers (risque de saturation du
+        // stockage). Une demande sans fichier n'est jamais bloquée par l'activité des autres visiteurs.
+        if ($validFiles !== [] && !pc_rate_take('create-files-all', 3600, max(1, (int) pc_config()['global_rate_max']), true)) {
+            pc_log('global attachment ceiling reached');
+            return ['ok' => false, 'error' => 'busy'];
+        }
+        // Plafond par client, vérifié et consommé atomiquement.
         if (!pc_rate_take('create', $window, $maxCreate)) {
             return ['ok' => false, 'error' => 'rate_limited'];
         }
-        if (!pc_rate_take('create-all', 3600, max(1, (int) pc_config()['global_rate_max']), true)) {
-            pc_log('global request ceiling reached');
-            return ['ok' => false, 'error' => 'rate_limited'];
+        $replaces = $baseKey !== null ? pc_key_latest($baseKey) : null;
+        $request = pc_request_create($fields, $validFiles, $replaces);
+        if ($baseKey !== null) {
+            pc_key_remember($baseKey, $request['id']);
         }
-        $request = pc_request_create($fields, $validFiles);
         return [
             'ok' => true,
             'id' => $request['id'],
             'notified' => in_array($request['notification']['status'], ['envoyee', 'fichier'], true),
+            'replaces' => $replaces,
             'files' => array_map(fn ($f) => ['name' => $f['name'], 'size' => $f['size']], $request['files']),
             'message' => count($request['files']) > 0
                 ? 'Votre demande et vos fichiers ont bien été transmis à PAPER CUP.'
                 : 'Votre demande a bien été transmise à PAPER CUP.',
         ];
     });
+    if (($result['error'] ?? '') === 'busy') {
+        header('Retry-After: 900');
+        pc_respond(503, [
+            'ok' => false,
+            'error' => 'busy',
+            'message' => 'Le service reçoit beaucoup de fichiers en ce moment. Envoyez votre demande sans pièce jointe (vos informations sont conservées), ou réessayez dans quelques minutes.',
+        ], $wantsJson);
+    }
     if (empty($result['ok'])) {
         $rateLimited();
     }

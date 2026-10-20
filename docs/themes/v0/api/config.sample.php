@@ -18,7 +18,13 @@ return [
     // 'max_files' => 5,
     // 'max_file_bytes' => 10 * 1024 * 1024,
     // 'max_total_bytes' => 25 * 1024 * 1024,
+    // Limite du serveur web si elle est inférieure à post_max_size (Nginx client_max_body_size, Apache LimitRequestBody).
+    // 'max_request_bytes' => 0,
+    // Volume total des pièces jointes conservées, réserve d'espace disque (les demandes sans fichier passent toujours).
+    // 'storage_max_bytes' => 2 * 1024 * 1024 * 1024,
     // 'min_free_bytes' => 200 * 1024 * 1024,
+    // Envois AVEC fichiers par heure pour l'ensemble du site (les demandes sans fichier n'y sont pas soumises).
+    // 'global_rate_max' => 200,
 
     // SVG, AI, EPS et PSD : à n'activer qu'après lecture du § Sécurité du README.
     // 'allow_design_files' => false,
@@ -27,6 +33,7 @@ return [
     // 'notify_to' => 'paper.cup@hotmail.fr',
     // 'mail_from' => 'PAPER CUP <no-reply@papercup.com.tn>',
     // 'mail_transport' => 'mail', // mail | file | none
+    // OBLIGATOIRE pour les liens des notifications (sinon aucun lien n'est envoyé) : https://domaine[:port][/chemin].
     // 'site_url' => 'https://www.papercup.com.tn',
     // 'signed_link_ttl' => 7 * 24 * 3600,
 
@@ -34,6 +41,8 @@ return [
     // 'admin_user' => 'papercup',
     // 'admin_password_hash' => '',
     // 'admin_session_ttl' => 30 * 60,
+    // Impose HTTPS à l'administration. Ne pas activer derrière un proxy qui termine TLS sans transmettre HTTPS=on.
+    // 'force_https' => false,
 
     // Secret HMAC des liens signés (64 caractères hexadécimaux) ; généré automatiquement dans le stockage si vide.
     // 'secret' => '',

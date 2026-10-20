@@ -50,6 +50,9 @@ function pc_notification_content(array $r): array
     if (($r['meta']['page'] ?? '') !== '') {
         $lines[] = 'Page       : ' . $r['meta']['page'];
     }
+    if (!empty($r['meta']['replaces'])) {
+        $lines[] = 'Remplace   : ' . $r['meta']['replaces'] . ' (version modifiée par le client après une coupure de connexion)';
+    }
     $lines[] = '';
     foreach (pc_request_rows($r) as $label => $value) {
         if ($label === 'Projet') {
@@ -73,7 +76,7 @@ function pc_notification_content(array $r): array
             $lines[] = 'Liens personnels valables jusqu’au ' . date('d/m/Y à H:i', $expires) . ' — ne pas transférer cet e-mail.';
         } else {
             // Sans adresse configurée, aucun lien n'est construit (l'en-tête Host de la requête n'est pas fiable).
-            $lines[] = 'Consultez-les dans l’espace d’administration du site (option site_url non configurée : aucun lien direct).';
+            $lines[] = 'Consultez-les dans l’espace d’administration du site (option site_url absente ou invalide : aucun lien direct).';
         }
         foreach (array_values($files) as $i => $f) {
             $lines[] = '';
