@@ -2596,6 +2596,9 @@ a.contact-card:hover .contact-card__arrow {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.6rem;
 }
+.radio-cards--3 {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+}
 .format-cards {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2806,6 +2809,7 @@ a.contact-card:hover .contact-card__arrow {
   line-height: 1.35;
 }
 .attach__title-icon {
+  display: inline-block;
   width: 1.15rem;
   height: 1.15rem;
   margin-right: 0.45rem;

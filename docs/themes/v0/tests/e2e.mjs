@@ -224,8 +224,47 @@ try {
   ok('Coupure réseau : nouvel essai sans doublon (même référence)', requests().length === before + 1, `${requests().length - before} demande(s)`);
   await p.unroute('**/api/demande.php');
 
-  /* ------------------------------------------------- Double clic sur l'envoi */
+  /* ----------------------- Coupure réseau puis saisie modifiée : nouvelle demande */
   await p.click('[data-quote-edit]');
+  await p.fill('#f-msg', 'Avant modification');
+  before = requests().length;
+  cut = true;
+  await p.route('**/api/demande.php', async (route) => {
+    if (route.request().method() === 'POST' && cut) {
+      cut = false;
+      await route.fetch();
+      return route.abort('connectionreset');
+    }
+    return route.continue();
+  });
+  await p.click('#devis [type=submit]');
+  await p.waitForSelector('#devis [data-form-errors]:not([hidden])');
+  await p.fill('#f-msg', 'Après modification');
+  await p.click('#devis [type=submit]');
+  await p.waitForSelector('[data-quote-result]:not([hidden])');
+  const refEdit = ((await p.innerText('[data-result-text]')).match(/PC-\d{8}-[A-Z2-9]{5}/) || [])[0];
+  ok('Saisie modifiée après une coupure : la version envoyée est bien celle confirmée', refEdit && load(refEdit).fields.message === 'Après modification' && /Après modification/.test(await p.innerText('[data-quote-summary]')), refEdit);
+  await p.unroute('**/api/demande.php');
+
+  /* ---------------------------------------------- Autre emballage (sans format) */
+  await p.click('[data-quote-edit]');
+  await p.click('label:has(#f-type-autre)');
+  await p.evaluate(() => document.querySelectorAll('#devis input[name="format"]').forEach((r) => (r.checked = false)));
+  await p.fill('#f-qty', '300');
+  await p.fill('#f-msg', 'Pochettes personnalisées taille 2');
+  before = requests().length;
+  await p.click('#devis [type=submit]');
+  await p.waitForSelector('[data-quote-result]:not([hidden])');
+  const refOther = ((await p.innerText('[data-result-text]')).match(/PC-\d{8}-[A-Z2-9]{5}/) || [])[0];
+  ok('« Autre emballage » : envoyé sans format ni minimum gobelets', refOther && load(refOther).fields.type === 'autre' && /Autre emballage/.test(await p.innerText('[data-quote-summary]')));
+  await p.goto(PHP + '/contact.html?type=autre#devis');
+  ok('« Autre emballage » : pré-rempli depuis les liens de la gamme', await p.isChecked('#f-type-autre'));
+
+  /* ------------------------------------------------- Double clic sur l'envoi */
+  await fillContact(p);
+  await p.click('label:has(#f-type-perso)');
+  await p.click('label:has(#f-format-9oz)');
+  await p.fill('#f-qty', '5000');
   await p.fill('#f-msg', 'Double clic');
   before = requests().length;
   await p.locator('#devis [type=submit]').dblclick();
@@ -248,6 +287,11 @@ try {
   await p.setInputFiles('#home-studio-files-input', [LOGO]);
   const href = await p.getAttribute('[data-studio-cup="12oz"] .js-brand-logo', 'href');
   ok('Essai : logo affiché sur l’aperçu du gobelet', /^blob:/.test(href || ''));
+  ok('Essai : avertissement sur le lien de devis quand des fichiers sont joints', await p.isVisible('#home-studio [data-cta-note]'));
+  await p.focus('#home-studio input[data-studio-format][value="9oz"]');
+  await p.keyboard.press('Enter');
+  await p.waitForTimeout(200);
+  ok('Essai : Entrée sur un format ne soumet pas le formulaire', (await p.isHidden('#home-studio [data-form-errors]')) && p.url().endsWith('/index.html'));
   await p.click('#home-studio [type=submit]');
   ok('Essai : coordonnées requises', /Indiquez votre nom/.test(await p.innerText('#home-studio [data-form-errors]')));
   await p.fill('#home-studio-nom', 'Client Essai');

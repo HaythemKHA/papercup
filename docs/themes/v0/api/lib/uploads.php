@@ -15,8 +15,11 @@
 
 declare(strict_types=1);
 
-const PC_MAX_IMAGE_SIDE = 20000;
-const PC_MAX_IMAGE_PIXELS = 150_000_000;
+// Images très grandes refusées : elles alourdiraient l'aperçu de l'administration (décompression).
+const PC_MAX_IMAGE_SIDE = 10000;
+const PC_MAX_IMAGE_PIXELS = 40_000_000;
+// Au-delà, l'administration n'affiche pas l'image en miniature (lien d'aperçu seulement).
+const PC_THUMB_MAX_PIXELS = 16_000_000;
 
 /** Liste à plat des fichiers reçus dans le champ multiple « fichiers[] ». Les entrées vides sont ignorées. */
 function pc_uploaded_files(string $field = 'fichiers'): array
@@ -26,29 +29,45 @@ function pc_uploaded_files(string $field = 'fichiers'): array
         return [];
     }
     $list = [];
-    if (is_array($raw['name'])) {
-        foreach (array_keys($raw['name']) as $i) {
-            $list[] = [
-                'name' => $raw['name'][$i] ?? '',
-                'tmp_name' => $raw['tmp_name'][$i] ?? '',
-                'error' => (int) ($raw['error'][$i] ?? UPLOAD_ERR_NO_FILE),
-                'size' => (int) ($raw['size'][$i] ?? 0),
-            ];
+    // Seules les entrées simples sont lues (un champ « fichiers[a][b] » imbriqué est ignoré).
+    $scalar = fn ($v) => is_scalar($v) ? (string) $v : null;
+    $names = is_array($raw['name']) ? $raw['name'] : [$raw['name']];
+    $pick = fn (string $k, $i) => is_array($raw[$k] ?? null) ? ($raw[$k][$i] ?? null) : ($raw[$k] ?? null);
+    foreach (array_keys($names) as $pos => $i) {
+        $name = $scalar(is_array($raw['name']) ? $raw['name'][$i] : $raw['name']);
+        $tmp = $scalar($pick('tmp_name', $i));
+        if ($name === null || $tmp === null) {
+            continue;
         }
-    } else {
-        $list[] = ['name' => $raw['name'], 'tmp_name' => $raw['tmp_name'] ?? '', 'error' => (int) ($raw['error'] ?? UPLOAD_ERR_NO_FILE), 'size' => (int) ($raw['size'] ?? 0)];
+        $list[] = [
+            'index' => $pos,
+            'name' => $name,
+            'tmp_name' => $tmp,
+            'error' => (int) $scalar($pick('error', $i) ?? UPLOAD_ERR_NO_FILE),
+            'size' => (int) $scalar($pick('size', $i) ?? 0),
+        ];
     }
     return array_values(array_filter($list, fn ($f) => !($f['error'] === UPLOAD_ERR_NO_FILE && ($f['name'] === '' || $f['size'] === 0))));
 }
 
-/** Nom d'origine réduit à un libellé sûr (aucun chemin, aucun caractère de contrôle). */
+/** Extension d'un nom de fichier d'origine (lue avant toute troncature du nom). */
+function pc_extension(string $name): string
+{
+    return strtolower(pathinfo(basename(str_replace('\\', '/', $name)), PATHINFO_EXTENSION));
+}
+
+/** Nom d'origine réduit à un libellé sûr (aucun chemin, aucun caractère de contrôle), extension conservée. */
 function pc_display_name(string $name): string
 {
-    $name = str_replace('\\', '/', $name);
-    $name = basename($name);
-    $name = pc_clean($name, 140);
+    $name = basename(str_replace('\\', '/', $name));
+    $name = pc_clean($name, 1000);
     $name = preg_replace('/[<>:"|?*]/u', '_', $name) ?? '';
     $name = ltrim($name, '.');
+    if (mb_strlen($name) > 140) {
+        $ext = pc_extension($name);
+        $stem = $ext === '' ? $name : mb_substr($name, 0, -(mb_strlen($ext) + 1));
+        $name = mb_substr($stem, 0, 130) . ($ext !== '' ? '.' . $ext : '');
+    }
     return $name === '' ? 'fichier' : $name;
 }
 
@@ -58,6 +77,9 @@ function pc_display_name(string $name): string
  */
 function pc_validate_uploads(array $files): array
 {
+    if ($files === []) {
+        return [[], []]; // Demande sans fichier : aucun contrôle de fichier nécessaire.
+    }
     $limits = pc_upload_limits();
     $types = pc_allowed_types();
     $valid = [];
@@ -65,18 +87,19 @@ function pc_validate_uploads(array $files): array
     $total = 0;
     $seen = [];
 
-    if ($files !== [] && !$limits['enabled']) {
+    if (!$limits['enabled']) {
         return [[], [['name' => '', 'message' => 'L’envoi de fichiers est désactivé sur ce serveur. Envoyez votre demande sans pièce jointe.']]];
     }
     if (count($files) > $limits['maxFiles']) {
         return [[], [['name' => '', 'message' => sprintf('Vous pouvez joindre %d fichiers au maximum.', $limits['maxFiles'])]]];
     }
 
-    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $finfo = new finfo(FILEINFO_MIME_TYPE); // présent : pc_upload_limits() désactive l'envoi sans fileinfo
     foreach ($files as $f) {
         $label = pc_display_name((string) $f['name']);
-        $fail = function (string $message) use (&$errors, $label) {
-            $errors[] = ['name' => $label, 'message' => $message];
+        $index = (int) $f['index'];
+        $fail = function (string $message) use (&$errors, $label, $index) {
+            $errors[] = ['index' => $index, 'name' => $label, 'message' => $message];
         };
 
         switch ($f['error']) {
@@ -108,7 +131,7 @@ function pc_validate_uploads(array $files): array
             $fail(sprintf('Fichier trop volumineux (%s maximum).', pc_format_bytes($limits['maxFileBytes'])));
             continue;
         }
-        $ext = strtolower(pathinfo($label, PATHINFO_EXTENSION));
+        $ext = pc_extension((string) $f['name']);
         if (!isset($types[$ext])) {
             $fail('Format non accepté. Formats acceptés : ' . pc_accepted_labels() . '.');
             continue;
@@ -123,13 +146,23 @@ function pc_validate_uploads(array $files): array
             $fail($problem);
             continue;
         }
+        $dims = isset(PC_IMAGE_TYPES[$ext]) ? @getimagesize($tmp) : false;
         $sha = hash_file('sha256', $tmp);
         if (isset($seen[$sha])) {
             continue; // Même fichier sélectionné deux fois : un seul exemplaire est conservé.
         }
         $seen[$sha] = true;
         $total += $size;
-        $valid[] = ['tmp' => $tmp, 'name' => $label, 'ext' => $ext, 'mime' => $mime, 'size' => $size, 'sha256' => $sha];
+        $valid[] = [
+            'tmp' => $tmp,
+            'name' => $label,
+            'ext' => $ext,
+            'mime' => $mime,
+            'size' => $size,
+            'sha256' => $sha,
+            'width' => $dims ? (int) $dims[0] : null,
+            'height' => $dims ? (int) $dims[1] : null,
+        ];
     }
 
     if ($total > $limits['maxTotalBytes']) {
@@ -137,6 +170,8 @@ function pc_validate_uploads(array $files): array
     }
     return [$errors === [] ? $valid : [], $errors];
 }
+
+const PC_IMAGE_TYPES = ['png' => IMAGETYPE_PNG, 'jpg' => IMAGETYPE_JPEG, 'jpeg' => IMAGETYPE_JPEG, 'webp' => IMAGETYPE_WEBP];
 
 /** Contrôle de structure propre au format ; renvoie un message d'erreur ou null. */
 function pc_check_structure(string $ext, string $path): ?string
@@ -148,7 +183,7 @@ function pc_check_structure(string $ext, string $path): ?string
         case 'jpeg':
         case 'webp':
             $info = @getimagesize($path);
-            $expected = ['png' => IMAGETYPE_PNG, 'jpg' => IMAGETYPE_JPEG, 'jpeg' => IMAGETYPE_JPEG, 'webp' => IMAGETYPE_WEBP][$ext];
+            $expected = PC_IMAGE_TYPES[$ext];
             if ($info === false || $info[2] !== $expected) {
                 return 'Image illisible ou endommagée.';
             }
@@ -185,7 +220,10 @@ function pc_svg_is_safe(string $svg): bool
     }
     $forbidden = [
         '/<!DOCTYPE/i', '/<!ENTITY/i', '/<\?xml-stylesheet/i',
-        '/<\s*(script|foreignObject|iframe|embed|object|audio|video|handler|listener)\b/i',
+        // Références de caractères refusées : elles permettraient de masquer « javascript: » ou un nom d'élément.
+        '/&#/', '/&(?!(amp|lt|gt|quot|apos);)[a-z0-9]+;/i',
+        // Éléments actifs, y compris préfixés (svg:script) et animations (animate, set) capables de modifier un lien.
+        '/<\s*([\w.-]+:)?(script|foreignObject|iframe|embed|object|audio|video|handler|listener|animate\w*|set|discard)\b/i',
         '/\son[a-z]+\s*=/i',
         '/(java|vb)script\s*:/i', '/data\s*:\s*(?!image\/(png|jpe?g|webp|gif);base64,)/i',
         '/(xlink:)?href\s*=\s*["\']\s*(?!#|data:image\/(png|jpe?g|webp|gif);base64,)/i',
@@ -226,6 +264,8 @@ function pc_store_uploads(array $valid, string $requestDir): array
             'mime' => $f['mime'],
             'size' => $f['size'],
             'sha256' => $f['sha256'],
+            'width' => $f['width'] ?? null,
+            'height' => $f['height'] ?? null,
         ];
     }
     return $stored;
@@ -242,10 +282,15 @@ function pc_file_signature(string $id, string $stored, int $expires): string
     return hash_hmac('sha256', 'file|' . $id . '|' . $stored . '|' . $expires, pc_secret());
 }
 
-function pc_signed_file_url(string $id, string $stored, ?int $expires = null): string
+/** Lien signé absolu, ou null si l'adresse publique du site n'est pas configurée. */
+function pc_signed_file_url(string $id, string $stored, ?int $expires = null): ?string
 {
+    $base = pc_site_url();
+    if ($base === null) {
+        return null;
+    }
     $expires ??= time() + (int) pc_config()['signed_link_ttl'];
-    return pc_site_url() . '/api/fichier.php?' . http_build_query([
+    return $base . '/api/fichier.php?' . http_build_query([
         'd' => $id,
         'f' => $stored,
         'e' => $expires,

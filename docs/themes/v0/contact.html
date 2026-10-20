@@ -13,11 +13,11 @@
     <meta name="theme-color" content="#F5F0E8" />
     <meta name="format-detection" content="telephone=no" />
     <link rel="preload" href="assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="assets/css/theme.bundle.css?v=1.0.0" />
+    <link rel="stylesheet" href="assets/css/theme.bundle.css?v=1.1.0" />
     <script>
       document.documentElement.classList.add("js");
     </script>
-    <script src="assets/js/theme.bundle.js?v=1.0.0" defer></script>
+    <script src="assets/js/theme.bundle.js?v=1.1.0" defer></script>
     <link rel="icon" href="assets/images/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="assets/images/favicon-32.png" sizes="32x32" type="image/png" />
     <link rel="apple-touch-icon" href="assets/images/apple-touch-icon.png" />
@@ -1230,8 +1230,8 @@
                 <ul></ul>
               </div>
               <fieldset class="field">
-                <legend class="field__label">Type de gobelet <span class="req" aria-hidden="true">*</span></legend>
-                <div class="radio-cards">
+                <legend class="field__label">Type de produit <span class="req" aria-hidden="true">*</span></legend>
+                <div class="radio-cards radio-cards--3">
                   <label class="radio-card"
                     ><input
                       type="radio"
@@ -1256,6 +1256,12 @@
                       ><strong>Standard</strong><span>Sans impression personnalisée</span></span
                     ></label
                   >
+                  <label class="radio-card"
+                    ><input type="radio" name="type" value="autre" id="f-type-autre" aria-describedby="err-type" /><span
+                      class="radio-card__body"
+                      ><strong>Autre emballage</strong><span>Gobelets plastique, pots à glace, pochettes…</span></span
+                    ></label
+                  >
                 </div>
                 <p class="field__error" id="err-type" hidden>
                   <svg class="icon" width="24" height="24" aria-hidden="true" focusable="false">
@@ -1264,7 +1270,9 @@
                 </p>
               </fieldset>
               <fieldset class="field">
-                <legend class="field__label">Format <span class="req" aria-hidden="true">*</span></legend>
+                <legend class="field__label">
+                  Format de gobelet carton <span class="req" aria-hidden="true">*</span>
+                </legend>
                 <div class="format-cards">
                   <label class="radio-card format-card"
                     ><input
@@ -1591,7 +1599,7 @@
                 </div>
                 <div class="field">
                   <label class="field__label" for="f-name"
-                    >Votre nom <span class="req" aria-hidden="true" data-req-mark hidden>*</span></label
+                    >Votre nom <span class="req" aria-hidden="true" data-req-mark>*</span></label
                   >
                   <input
                     class="input"
@@ -1601,6 +1609,7 @@
                     autocomplete="name"
                     maxlength="80"
                     aria-describedby="err-name"
+                    required
                     data-required-when-connected
                   />
                   <p class="field__error" id="err-name" hidden>
@@ -1611,7 +1620,7 @@
                 </div>
                 <div class="field">
                   <label class="field__label" for="f-phone"
-                    >Téléphone <span class="req" aria-hidden="true" data-req-mark hidden>*</span></label
+                    >Téléphone <span class="req" aria-hidden="true" data-req-mark>*</span></label
                   >
                   <input
                     class="input"
@@ -1622,6 +1631,7 @@
                     inputmode="tel"
                     maxlength="20"
                     aria-describedby="err-phone"
+                    required
                     data-required-when-connected
                   />
                   <p class="field__error" id="err-phone" hidden>
@@ -1743,6 +1753,16 @@
                     <use href="#i-arrow-right" />
                   </svg>
                 </button>
+                <noscript
+                  ><p class="form-note">
+                    <svg class="icon" width="24" height="24" aria-hidden="true" focusable="false">
+                      <use href="#i-info" /></svg
+                    ><span
+                      >JavaScript est désactivé : la demande est envoyée directement au serveur du site. En cas d’échec,
+                      écrivez à paper.cup@hotmail.fr ou appelez le (+216) 75 290 088.</span
+                    >
+                  </p></noscript
+                >
                 <p class="form-note">
                   <svg class="icon" width="24" height="24" aria-hidden="true" focusable="false">
                     <use href="#i-info" /></svg

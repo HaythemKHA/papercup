@@ -226,6 +226,8 @@ Déjà présents sur le site et confirmés par Facebook : formats 4 / 6,5 / 9 / 
 | Équivalences en ml des gobelets plastique (300 à 500 ml) | Lues seulement dans le texte automatique d'une image non consultée |
 | Audience (≈ 10 100 abonnés), date de création de la page (16/01/2020) | Chiffres variables, sans intérêt pour le client |
 
+Les liens « Demander un devis » de ces produits ouvrent le formulaire avec le type **« Autre emballage »** : format de gobelet carton facultatif et aucun minimum appliqué, puisque rien n'est publié à ce sujet.
+
 **Aucune** publication ne donne de prix, délai, minimum, technique ou nombre de couleurs d'impression, matière, certification, double paroi ou kraft : rien de tel n'a été ajouté. Les commentaires demandent surtout des **prix et des dimensions**, sans réponse publique visible : la FAQ rappelle que les tarifs sont établis sur devis et que le formulaire permet de joindre un visuel.
 
 ### Propositions éditoriales (non réalisées)

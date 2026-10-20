@@ -346,15 +346,16 @@ export const contactPage = {
           <ul></ul>
         </div>
         <fieldset class="field">
-          <legend class="field__label">Type de gobelet <span class="req" aria-hidden="true">*</span></legend>
-          <div class="radio-cards">
+          <legend class="field__label">Type de produit <span class="req" aria-hidden="true">*</span></legend>
+          <div class="radio-cards radio-cards--3">
             <label class="radio-card"><input type="radio" name="type" value="personnalise" id="f-type-perso" checked required aria-describedby="err-type"><span class="radio-card__body"><strong>Personnalisé</strong><span>À votre marque, dès ${fmt(site.minOrder)} pièces</span></span></label>
             <label class="radio-card"><input type="radio" name="type" value="standard" id="f-type-std" aria-describedby="err-type"><span class="radio-card__body"><strong>Standard</strong><span>Sans impression personnalisée</span></span></label>
+            <label class="radio-card"><input type="radio" name="type" value="autre" id="f-type-autre" aria-describedby="err-type"><span class="radio-card__body"><strong>Autre emballage</strong><span>Gobelets plastique, pots à glace, pochettes…</span></span></label>
           </div>
           ${errorSlot('err-type')}
         </fieldset>
         <fieldset class="field">
-          <legend class="field__label">Format <span class="req" aria-hidden="true">*</span></legend>
+          <legend class="field__label">Format de gobelet carton <span class="req" aria-hidden="true">*</span></legend>
           <div class="format-cards">${formatCards()}</div>
           ${errorSlot('err-format')}
         </fieldset>
@@ -370,13 +371,13 @@ export const contactPage = {
             <input class="input" id="f-company" name="societe" type="text" autocomplete="organization" maxlength="80">
           </div>
           <div class="field">
-            <label class="field__label" for="f-name">Votre nom <span class="req" aria-hidden="true" data-req-mark hidden>*</span></label>
-            <input class="input" id="f-name" name="nom" type="text" autocomplete="name" maxlength="80" aria-describedby="err-name" data-required-when-connected>
+            <label class="field__label" for="f-name">Votre nom <span class="req" aria-hidden="true" data-req-mark>*</span></label>
+            <input class="input" id="f-name" name="nom" type="text" autocomplete="name" maxlength="80" aria-describedby="err-name" required data-required-when-connected>
             ${errorSlot('err-name')}
           </div>
           <div class="field">
-            <label class="field__label" for="f-phone">Téléphone <span class="req" aria-hidden="true" data-req-mark hidden>*</span></label>
-            <input class="input" id="f-phone" name="telephone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" aria-describedby="err-phone" data-required-when-connected>
+            <label class="field__label" for="f-phone">Téléphone <span class="req" aria-hidden="true" data-req-mark>*</span></label>
+            <input class="input" id="f-phone" name="telephone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" aria-describedby="err-phone" required data-required-when-connected>
             ${errorSlot('err-phone')}
           </div>
           <div class="field">
@@ -402,6 +403,7 @@ export const contactPage = {
         })}
         <div class="form-actions">
           <button class="btn btn--accent btn--lg" type="submit" data-label-connected="Envoyer ma demande" data-label-offline="Générer mon récapitulatif"><span data-submit-label>Envoyer ma demande</span> ${icon('arrow-right')}</button>
+          <noscript><p class="form-note">${icon('info')}<span>JavaScript est désactivé : la demande est envoyée directement au serveur du site. En cas d’échec, écrivez à ${site.email} ou appelez le ${site.phone.display}.</span></p></noscript>
           <p class="form-note">${icon('info')}<span data-form-note data-note-connected="Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace privé, réservé à son équipe." data-note-offline="Ce formulaire n’envoie aucune donnée par lui-même : il prépare un récapitulatif que vous transmettez ensuite par e-mail (${site.email}) ou par téléphone (${site.phone.display}).">Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace privé, réservé à son équipe.</span></p>
         </div>
       </form>

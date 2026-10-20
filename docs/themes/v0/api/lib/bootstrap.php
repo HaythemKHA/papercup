@@ -16,6 +16,10 @@ if (PHP_VERSION_ID < 80100) {
     exit('PHP 8.1 ou supérieur requis.');
 }
 
+// Jamais d'erreur affichée au visiteur (chemins, valeurs) : elles vont au journal du serveur.
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+
 const PC_FORMATS = ['4oz', '6-5oz', '9oz', '12oz'];
 const PC_FORMAT_LABELS = ['4oz' => '4 oz', '6-5oz' => '6,5 oz', '9oz' => '9 oz', '12oz' => '12 oz'];
 const PC_INKS = ['#CC3D14' => 'Vermillon', '#1C1A17' => 'Encre', '#8A5A2B' => 'Terre', '#55683A' => 'Olive', '#2C4A7A' => 'Indigo'];
@@ -35,6 +39,12 @@ function pc_config(): array
         'max_files' => 5,
         'max_file_bytes' => 10 * 1024 * 1024,
         'max_total_bytes' => 25 * 1024 * 1024,
+        // Taille maximale d'une requête acceptée par le serveur web (Nginx client_max_body_size,
+        // Apache LimitRequestBody) si elle est inférieure à post_max_size. 0 : non renseignée.
+        'max_request_bytes' => 0,
+        // Volume total maximal des pièces jointes conservées, et demandes maximales par heure (tous visiteurs).
+        'storage_max_bytes' => 2 * 1024 * 1024 * 1024,
+        'global_rate_max' => 200,
         // Réserve d'espace disque minimale à conserver après l'enregistrement d'une demande.
         'min_free_bytes' => 200 * 1024 * 1024,
         // SVG, EPS et PSD : désactivés par défaut (voir README, § Sécurité des pièces jointes).
@@ -43,12 +53,17 @@ function pc_config(): array
         'notify_to' => 'paper.cup@hotmail.fr',
         'mail_from' => 'PAPER CUP <no-reply@papercup.com.tn>',
         'mail_transport' => 'mail', // mail (sendmail du serveur) | file (fichiers .eml) | none
-        'site_url' => '', // ex. https://www.papercup.com.tn — sinon déduit de la requête
+        // Adresse publique du site, utilisée pour les liens des notifications. Sans elle, l'e-mail ne contient
+        // aucun lien (jamais de lien construit à partir de l'en-tête Host, falsifiable).
+        'site_url' => '', // ex. https://www.papercup.com.tn
         'signed_link_ttl' => 7 * 24 * 3600,
         // Espace d'administration (désactivé tant qu'aucun mot de passe n'est configuré).
         'admin_user' => 'papercup',
         'admin_password_hash' => '',
         'admin_session_ttl' => 30 * 60,
+        // Refuser l'administration hors HTTPS (redirection en GET, refus en POST). À activer en production,
+        // sauf si le serveur redirige déjà tout le site en HTTPS.
+        'force_https' => false,
         // Anti-abus.
         'rate_limit_max' => 20,
         'rate_limit_window' => 3600,
@@ -75,6 +90,10 @@ function pc_config(): array
         'PC_MAX_FILES' => ['max_files', 'int'],
         'PC_MAX_FILE_BYTES' => ['max_file_bytes', 'int'],
         'PC_MAX_TOTAL_BYTES' => ['max_total_bytes', 'int'],
+        'PC_MAX_REQUEST_BYTES' => ['max_request_bytes', 'int'],
+        'PC_STORAGE_MAX_BYTES' => ['storage_max_bytes', 'int'],
+        'PC_GLOBAL_RATE_MAX' => ['global_rate_max', 'int'],
+        'PC_FORCE_HTTPS' => ['force_https', 'bool'],
         'PC_MIN_FREE_BYTES' => ['min_free_bytes', 'int'],
         'PC_ALLOW_DESIGN_FILES' => ['allow_design_files', 'bool'],
         'PC_NOTIFY_TO' => ['notify_to', 'string'],
@@ -108,7 +127,8 @@ function pc_config(): array
 function pc_ini_bytes(string $directive): int
 {
     $raw = trim((string) ini_get($directive));
-    if ($raw === '' || $raw === '-1') {
+    // « 0 » ou « -1 » : pas de limite côté PHP.
+    if ($raw === '' || $raw === '-1' || $raw === '0') {
         return PHP_INT_MAX;
     }
     $unit = strtolower(substr($raw, -1));
@@ -128,13 +148,18 @@ function pc_ini_bytes(string $directive): int
 function pc_upload_limits(): array
 {
     $c = pc_config();
-    $enabled = filter_var(ini_get('file_uploads'), FILTER_VALIDATE_BOOLEAN);
+    // Sans l'extension fileinfo, le type réel des fichiers ne peut pas être contrôlé : envoi de fichiers désactivé.
+    $enabled = filter_var(ini_get('file_uploads'), FILTER_VALIDATE_BOOLEAN) && class_exists('finfo');
     $postMax = pc_ini_bytes('post_max_size');
+    if ((int) $c['max_request_bytes'] > 0) {
+        $postMax = min($postMax, (int) $c['max_request_bytes']);
+    }
     // Marge pour les champs texte et l'enveloppe multipart.
     $postBudget = $postMax === PHP_INT_MAX ? PHP_INT_MAX : max(0, $postMax - 64 * 1024);
     $perFile = min((int) $c['max_file_bytes'], pc_ini_bytes('upload_max_filesize'), $postBudget);
     $total = min((int) $c['max_total_bytes'], $postBudget);
-    $count = min((int) $c['max_files'], (int) (ini_get('max_file_uploads') ?: 20));
+    $iniFiles = ini_get('max_file_uploads');
+    $count = min((int) $c['max_files'], $iniFiles === false || $iniFiles === '' ? 20 : (int) $iniFiles);
     return [
         'enabled' => $enabled && $perFile > 0 && $count > 0,
         'maxFiles' => max(0, $count),
@@ -222,24 +247,43 @@ function pc_format_bytes(int $bytes): string
     return max(1, (int) round($bytes / 1024)) . ' Ko';
 }
 
-/** URL publique du site (configuration, sinon requête courante). */
-function pc_site_url(): string
+/**
+ * URL publique du site, uniquement si elle est configurée (site_url).
+ * Jamais déduite de l'en-tête Host : un visiteur pourrait sinon faire pointer les liens des
+ * notifications internes vers un autre domaine (hameçonnage de l'équipe).
+ */
+function pc_site_url(): ?string
 {
-    $configured = rtrim((string) pc_config()['site_url'], '/');
-    if ($configured !== '') {
-        return $configured;
-    }
-    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['SERVER_PORT'] ?? '') === '443');
-    $host = preg_replace('/[^A-Za-z0-9.\-:\[\]]/', '', (string) ($_SERVER['HTTP_HOST'] ?? 'localhost'));
-    // Le thème est servi depuis la racine web : api/ et admin/ en sont des sous-dossiers.
-    $base = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/api/x.php'), 2)), '/');
-    return ($https ? 'https' : 'http') . '://' . $host . $base;
+    $configured = rtrim(trim((string) pc_config()['site_url']), '/');
+    return preg_match('#^https?://[A-Za-z0-9.\-]+(:\d+)?(/[A-Za-z0-9._~/\-]*)?$#', $configured) ? $configured : null;
 }
 
-/** Adresse IP du client (REMOTE_ADDR uniquement : les en-têtes X-Forwarded-* sont falsifiables). */
+function pc_is_https(): bool
+{
+    return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['SERVER_PORT'] ?? '') === '443');
+}
+
+/** Valeur texte d'un paramètre ($_GET, $_POST) ; '' si absent ou non scalaire (tableaux refusés). */
+function pc_param(array $source, string $key): string
+{
+    $value = $source[$key] ?? '';
+    return is_string($value) ? $value : '';
+}
+
+/**
+ * Identifiant du client pour la limitation : REMOTE_ADDR uniquement (les en-têtes X-Forwarded-* sont
+ * falsifiables). En IPv6, le préfixe /64 (attribué à un même abonné) : changer d'adresse ne contourne rien.
+ */
 function pc_client_ip(): string
 {
-    return (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+    $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+    if (str_contains($ip, ':')) {
+        $bin = @inet_pton($ip);
+        if ($bin !== false && strlen($bin) === 16) {
+            return bin2hex(substr($bin, 0, 8)) . '::/64';
+        }
+    }
+    return $ip;
 }
 
 /** Journal technique privé (jamais de données personnelles complètes). */

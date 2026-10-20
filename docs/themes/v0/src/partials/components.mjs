@@ -270,6 +270,7 @@ export function studio(r, { id = 'studio', current = '12oz', headingLevel = 3 } 
         ${products.map((p) => `<label class="seg__opt"><input type="radio" name="format" value="${p.id}"${p.id === current ? ' checked' : ''} data-studio-format><span>${p.label}</span></label>`).join('')}
       </div>
     </fieldset>
+    <p class="studio__note studio__cta-note" data-cta-note hidden>${icon('info')}<span>Les fichiers joints ci-dessous ne suivent pas ce lien : vous pourrez les ajouter de nouveau dans le formulaire de devis.</span></p>
     <a class="btn btn--accent btn--lg" href="${r}contact.html?type=personnalise&amp;format=${current}#devis" data-studio-cta data-label-offline="Préparer ma demande" data-label-connected="Préparer un devis"><span data-cta-label>Préparer ma demande</span> ${icon('arrow-right')}</a>
     <p class="studio__note">${icon('info')}<span>Aperçu non contractuel. Couleurs, surfaces et techniques d'impression sont à valider avec PAPER CUP.</span></p>
   </div>
@@ -307,6 +308,7 @@ export function studio(r, { id = 'studio', current = '12oz', headingLevel = 3 } 
     </div>
     <div class="studio__actions" data-connected-only>
       <button class="btn btn--accent btn--lg" type="submit" data-label-connected="Envoyer ma demande"><span data-submit-label>Envoyer ma demande</span> ${icon('arrow-right')}</button>
+      <noscript><p class="studio__note">${icon('info')}<span>JavaScript est désactivé : la demande est envoyée directement au serveur du site. En cas d’échec, écrivez à ${site.email} ou appelez le ${site.phone.display}.</span></p></noscript>
       <p class="studio__note">${icon('info')}<span data-form-note data-note-connected="Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace privé, réservé à son équipe." data-note-offline="">Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace privé, réservé à son équipe.</span></p>
     </div>
     <div class="studio__result" data-brand-result tabindex="-1" role="status" hidden>

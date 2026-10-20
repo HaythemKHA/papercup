@@ -68,6 +68,7 @@ async function startServer({ port, env = {}, ini = {} }) {
       PC_MAIL_TRANSPORT: 'file',
       PC_ADMIN_PASSWORD_HASH: HASH,
       PC_RATE_LIMIT_MAX: '1000',
+      PC_SITE_URL: `http://127.0.0.1:${port}`,
       ...env,
     },
     stdio: 'ignore',
@@ -344,6 +345,129 @@ describe('API des demandes', () => {
   });
 });
 
+
+describe('Durcissement (revue de sécurité)', () => {
+  let srv;
+  before(async () => {
+    srv = await startServer({ port: 8197 });
+  });
+  after(() => srv.stop());
+
+  test('en-tête Host falsifié : les liens de la notification gardent l’adresse configurée', async () => {
+    // fetch() impose l'en-tête Host : envoi HTTP brut.
+    const { request } = await import('node:http');
+    const boundary = 'pcboundary';
+    const parts = Object.entries(devis({ societe: 'Host SARL' })).map(([k, v]) => `--${boundary}\r\nContent-Disposition: form-data; name="${k}"\r\n\r\n${v}\r\n`);
+    const body = Buffer.concat([Buffer.from(parts.join('')), Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="fichiers[]"; filename="host.png"\r\nContent-Type: image/png\r\n\r\n`), PNG, Buffer.from(`\r\n--${boundary}--\r\n`)]);
+    const data = await new Promise((resolve, reject) => {
+      const req = request({ host: '127.0.0.1', port: 8197, path: '/api/demande.php', method: 'POST', headers: { Host: 'evil.example', Accept: 'application/json', 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': body.length } }, (res) => {
+        let t = '';
+        res.on('data', (c) => (t += c));
+        res.on('end', () => resolve(JSON.parse(t)));
+      });
+      req.on('error', reject);
+      req.end(body);
+    });
+    assert.equal(data.ok, true);
+    const eml = outbox(srv.storage).find((f) => f.startsWith(data.id));
+    const { body: text } = decodeEml(readFileSync(join(srv.storage, 'outbox', eml), 'utf8'));
+    assert.doesNotMatch(text, /evil\.example/);
+    assert.match(text, /http:\/\/127\.0\.0\.1:8197\/api\/fichier\.php/);
+  });
+
+  test('clé d’idempotence réutilisée avec un contenu modifié : nouvelle demande, pas de faux doublon', async () => {
+    const key = 'cle-contenu-0123456789abcd';
+    const a = await post(srv.base, devis({ idempotence: key, message: 'Version 1' }));
+    const b = await post(srv.base, devis({ idempotence: key, message: 'Version 2' }), [file(PNG, 'ajout.png')]);
+    assert.equal(a.status, 201);
+    assert.equal(b.status, 201);
+    assert.notEqual(a.data.id, b.data.id);
+    assert.equal(b.data.files.length, 1);
+    const c = await post(srv.base, devis({ idempotence: key, message: 'Version 2' }), [file(PNG, 'ajout.png')]);
+    assert.equal(c.data.duplicate, true);
+    assert.equal(c.data.id, b.data.id);
+  });
+
+  test('erreurs de fichier : position du fichier renvoyée', async () => {
+    const r = await post(srv.base, devis(), [file(PNG, 'bon.png'), file(Buffer.from('texte'), 'bon.png')]);
+    assert.equal(r.status, 422);
+    assert.equal(r.data.files[0].index, 1);
+  });
+
+  test('paramètres en tableau : refusés proprement, sans avertissement PHP', async () => {
+    const f = await fetch(`${srv.base}/api/fichier.php?d[]=x&f=y&e=1&s=z`);
+    assert.equal(f.status, 400);
+    assert.doesNotMatch(await f.text(), /Warning|Array|\/home\//);
+    const a = await fetch(`${srv.base}/admin/?demande[]=x&statut[]=y`);
+    assert.equal(a.status, 200);
+    assert.doesNotMatch(await a.text(), /Warning|Array to string/);
+    const hp = await post(srv.base, { ...devis(), 'site_web[]': 'x' });
+    assert.equal(hp.status, 422);
+  });
+
+  test('nom de fichier très long : accepté, extension conservée', async () => {
+    const r = await post(srv.base, devis(), [file(PNG, 'a'.repeat(200) + '.png')]);
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    assert.match(r.data.files[0].name, /^a{130}\.png$/);
+  });
+
+  test('image démesurée refusée (dimensions)', async () => {
+    const r = await post(srv.base, devis(), [file(png(10001, 1), 'bandeau.png')]);
+    assert.equal(r.status, 422);
+    assert.match(r.data.files[0].message, /Dimensions/);
+  });
+
+  test('« Autre emballage » : format facultatif, pas de minimum gobelets', async () => {
+    const r = await post(srv.base, devis({ type: 'autre', format: '', quantite: '300', message: 'Pochettes taille 2' }));
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    const saved = loadRequest(srv.storage, r.data.id);
+    assert.equal(saved.fields.type, 'autre');
+    const perso = await post(srv.base, devis({ type: 'personnalise', format: '', quantite: '300' }));
+    assert.equal(perso.status, 422);
+    assert.ok(perso.data.fields.format && perso.data.fields.quantite);
+  });
+});
+
+describe('Stockage plein', () => {
+  let full;
+  let capped;
+  before(async () => {
+    full = await startServer({ port: 8198, env: { PC_MIN_FREE_BYTES: '999999999999999' } });
+    capped = await startServer({ port: 8199, env: { PC_STORAGE_MAX_BYTES: '1' } });
+  });
+  after(() => {
+    full.stop();
+    capped.stop();
+  });
+
+  test('réserve disque atteinte : fichiers refusés (507), demande sans fichier acceptée', async () => {
+    assert.equal((await post(full.base, devis(), [file(PNG, 'logo.png')])).status, 507);
+    assert.equal((await post(full.base, devis({ message: 'sans fichier' }))).status, 201);
+  });
+
+  test('plafond de stockage atteint : fichiers refusés (507), demande sans fichier acceptée', async () => {
+    assert.equal((await post(capped.base, devis(), [file(PNG, 'logo.png')])).status, 507);
+    assert.equal((await post(capped.base, devis({ message: 'sans fichier' }))).status, 201);
+  });
+});
+
+describe('Notification sans adresse configurée', () => {
+  let srv;
+  before(async () => {
+    srv = await startServer({ port: 8200, env: { PC_SITE_URL: '' } });
+  });
+  after(() => srv.stop());
+
+  test('aucun lien construit à partir de la requête', async () => {
+    const r = await post(srv.base, devis(), [file(PNG, 'logo.png')]);
+    const eml = outbox(srv.storage).find((f) => f.startsWith(r.data.id));
+    const { body } = decodeEml(readFileSync(join(srv.storage, 'outbox', eml), 'utf8'));
+    assert.doesNotMatch(body, /https?:\/\//);
+    assert.match(body, /logo\.png/);
+    assert.match(body, /espace d’administration/);
+  });
+});
+
 /* ============================================================ Administration */
 
 describe('Espace d’administration', () => {
@@ -461,10 +585,44 @@ describe('Espace d’administration', () => {
 
 describe('Limitation du nombre de demandes', () => {
   let srv;
+  let multi;
   before(async () => {
     srv = await startServer({ port: 8193, env: { PC_RATE_LIMIT_MAX: '2' } });
+    // Serveur à plusieurs processus : vérifie l'atomicité des plafonds sous envois simultanés.
+    multi = await startServer({ port: 8201, env: { PC_RATE_LIMIT_MAX: '5', PHP_CLI_SERVER_WORKERS: '8' } });
   });
-  after(() => srv.stop());
+  after(() => {
+    srv.stop();
+    multi.stop();
+  });
+
+  test('connexions simultanées depuis des sessions distinctes : 5 tentatives au plus', async () => {
+    const session = async () => {
+      const res = await fetch(multi.base + '/admin/');
+      const cookie = res.headers.getSetCookie()[0].split(';')[0];
+      const csrf = (await res.text()).match(/name="csrf" value="([a-f0-9]{64})"/)[1];
+      return { cookie, csrf };
+    };
+    const login = ({ cookie, csrf }, pw) =>
+      fetch(multi.base + '/admin/', {
+        method: 'POST',
+        redirect: 'manual',
+        headers: { Cookie: cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ csrf, action: 'login', utilisateur: 'papercup', mot_de_passe: pw }),
+      });
+    const sessions = await Promise.all(Array.from({ length: 12 }, session));
+    await Promise.all(sessions.map((x, i) => login(x, 'faux-' + i)));
+    const last = await session();
+    await login(last, PASSWORD);
+    const page = await (await fetch(multi.base + '/admin/', { headers: { Cookie: last.cookie } })).text();
+    assert.match(page, /Trop de tentatives/);
+  });
+
+  test('envois simultanés : jamais plus que le plafond', async () => {
+    const results = await Promise.all(Array.from({ length: 15 }, (_, i) => post(multi.base, devis({ message: 'simultané ' + i }))));
+    assert.equal(results.filter((r) => r.status === 201).length, 5);
+    assert.equal(requestIds(multi.storage).length, 5);
+  });
 
   test('au-delà du plafond horaire : 429', async () => {
     assert.equal((await post(srv.base, devis({ message: '1' }))).status, 201);

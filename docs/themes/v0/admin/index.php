@@ -13,12 +13,25 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/api/lib/bootstrap.php';
 
 $config = pc_config();
-$https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['SERVER_PORT'] ?? '') === '443');
+$https = pc_is_https();
 $self = strtok((string) ($_SERVER['REQUEST_URI'] ?? '/admin/'), '?') ?: '/admin/';
 $adminBase = rtrim(dirname($self . 'x'), '/') . '/';
 
 pc_security_headers("default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
 header('Content-Type: text/html; charset=utf-8');
+
+// HTTPS : imposé si force_https est activé (redirection en GET, refus des envois), HSTS dès que la connexion est chiffrée.
+if ($https) {
+    header('Strict-Transport-Security: max-age=31536000');
+} elseif (!empty($config['force_https'])) {
+    $host = preg_replace('/[^A-Za-z0-9.\-:]/', '', (string) parse_url((string) pc_site_url(), PHP_URL_HOST) ?: (string) ($_SERVER['HTTP_HOST'] ?? ''));
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && $host !== '') {
+        header('Location: https://' . $host . (string) ($_SERVER['REQUEST_URI'] ?? '/admin/'), true, 301);
+        exit;
+    }
+    http_response_code(403);
+    exit('HTTPS requis.');
+}
 
 /* ------------------------------------------------------------ Gabarit */
 
@@ -59,11 +72,15 @@ if (pc_storage_root() === null) {
 
 /* ------------------------------------------------------------ Session */
 
+// session.auto_start : la session ouverte par défaut (nom et cookie génériques) est refermée avant la nôtre.
+if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+}
 session_name('pc_admin');
 session_set_cookie_params([
     'lifetime' => 0,
     'path' => $adminBase,
-    'secure' => $https,
+    'secure' => $https || !empty($config['force_https']),
     'httponly' => true,
     'samesite' => 'Strict',
 ]);
@@ -86,25 +103,29 @@ if ($signedIn) {
     $_SESSION['auth']['seen'] = $now;
 }
 
-$requested = (string) ($_GET['demande'] ?? '');
+$requested = pc_param($_GET, 'demande');
 $requested = preg_match(PC_ID_PATTERN, $requested) ? $requested : '';
 
 /* ---------------------------------------------------------- Actions POST */
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
-    if (!hash_equals($csrf, (string) ($_POST['csrf'] ?? ''))) {
+    if (!hash_equals($csrf, pc_param($_POST, 'csrf'))) {
         admin_page('Session expirée', '<section class="admin-card admin-card--narrow"><h1>Formulaire expiré</h1><p>Rechargez la page et recommencez.</p><p><a class="btn btn--accent" href="./">Retour</a></p></section>', 400);
     }
-    $action = (string) ($_POST['action'] ?? '');
+    $action = pc_param($_POST, 'action');
 
     if ($action === 'login') {
         $window = (int) $config['login_window'];
-        if (pc_rate('login', $window, false) >= (int) $config['login_max_attempts']) {
+        // Tentative comptée AVANT la vérification, sous verrou : des essais simultanés ne dépassent pas le plafond.
+        // Plafond par client (préfixe /64 en IPv6) et plafond global (10 fois le plafond individuel).
+        $maxTries = max(1, (int) $config['login_max_attempts']);
+        if (!pc_rate_take('login', $window, $maxTries) || !pc_rate_take('login-all', $window, $maxTries * 10, true)) {
+            pc_log('admin login throttled');
             $_SESSION['flash'] = 'Trop de tentatives. Réessayez dans ' . (int) ceil($window / 60) . ' minutes.';
             admin_redirect($adminBase);
         }
-        $user = (string) ($_POST['utilisateur'] ?? '');
-        $password = (string) ($_POST['mot_de_passe'] ?? '');
+        $user = pc_param($_POST, 'utilisateur');
+        $password = pc_param($_POST, 'mot_de_passe');
         $userOk = hash_equals((string) $config['admin_user'], $user);
         $passOk = password_verify($password, (string) $config['admin_password_hash']); // toujours évalué : temps constant
         if ($userOk && $passOk) {
@@ -113,10 +134,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $_SESSION['auth'] = ['user' => $user, 'at' => $now, 'seen' => $now];
             $_SESSION['csrf'] = bin2hex(random_bytes(32));
             pc_log('admin login ok');
-            $next = (string) ($_POST['suite'] ?? '');
+            $next = pc_param($_POST, 'suite');
             admin_redirect($adminBase . (preg_match(PC_ID_PATTERN, $next) ? '?demande=' . rawurlencode($next) : ''));
         }
-        pc_rate('login', $window, true);
         pc_log('admin login failed');
         $_SESSION['flash'] = 'Identifiant ou mot de passe incorrect.';
         admin_redirect($adminBase . ($requested !== '' ? '?demande=' . rawurlencode($requested) : ''));
@@ -132,19 +152,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         admin_redirect($adminBase);
     }
 
-    $id = (string) ($_POST['demande'] ?? '');
+    $id = pc_param($_POST, 'demande');
     $request = preg_match(PC_ID_PATTERN, $id) ? pc_request_load($id) : null;
     if ($request === null) {
         admin_redirect($adminBase);
     }
-    if ($action === 'status' && isset(PC_STATUSES[(string) ($_POST['statut'] ?? '')])) {
-        $request['status'] = (string) $_POST['statut'];
+    if ($action === 'status' && isset(PC_STATUSES[pc_param($_POST, 'statut')])) {
+        $request['status'] = pc_param($_POST, 'statut');
         $request['history'][] = ['at' => date('c'), 'event' => 'statut:' . $request['status']];
         pc_request_save($request);
         $_SESSION['flash'] = 'Statut mis à jour : ' . $statusLabel($request['status']) . '.';
         admin_redirect($adminBase . '?demande=' . rawurlencode($id));
     }
-    if ($action === 'delete' && ($_POST['confirmer'] ?? '') === 'oui') {
+    if ($action === 'delete' && pc_param($_POST, 'confirmer') === 'oui') {
         pc_request_delete($id);
         pc_log('request ' . $id . ' deleted by admin');
         $_SESSION['flash'] = 'Demande ' . $id . ' supprimée, avec ses fichiers.';
@@ -178,7 +198,7 @@ if (!$signedIn) {
 
 if (isset($_GET['fichier'])) {
     session_write_close();
-    pc_send_file($requested, (string) $_GET['fichier'], ($_GET['apercu'] ?? '') === '1');
+    pc_send_file($requested, pc_param($_GET, 'fichier'), pc_param($_GET, 'apercu') === '1');
 }
 
 $warning = pc_storage_is_public()
@@ -211,11 +231,17 @@ if ($requested !== '') {
     foreach ($r['files'] ?? [] as $f) {
         $base = './?demande=' . rawurlencode($r['id']) . '&fichier=' . rawurlencode($f['stored']);
         $isImage = in_array($f['mime'], PC_INLINE_MIMES, true);
+        // Très grandes images : pas de miniature (décompression coûteuse), lien d'aperçu seulement.
+        $pixels = (int) ($f['width'] ?? 0) * (int) ($f['height'] ?? 0);
+        $thumb = $isImage && $pixels <= PC_THUMB_MAX_PIXELS;
         $files .= '<li class="admin-file">'
-            . ($isImage
+            . ($thumb
                 ? '<a class="admin-file__thumb" href="' . pc_h($base . '&apercu=1') . '" target="_blank" rel="noopener"><img src="' . pc_h($base . '&apercu=1') . '" alt="Aperçu de ' . pc_h($f['name']) . '" loading="lazy"></a>'
-                : '<span class="admin-file__thumb admin-file__thumb--doc" aria-hidden="true">' . pc_h(strtoupper($f['ext'])) . '</span>')
-            . '<div class="admin-file__meta"><strong>' . pc_h($f['name']) . '</strong><span>' . pc_h(strtoupper($f['ext'])) . ' · ' . pc_h(pc_format_bytes((int) $f['size'])) . '</span>'
+                : ($isImage
+                    ? '<a class="admin-file__thumb admin-file__thumb--doc" href="' . pc_h($base . '&apercu=1') . '" target="_blank" rel="noopener">Aperçu<span class="visually-hidden"> de ' . pc_h($f['name']) . ' (nouvel onglet)</span></a>'
+                    : '<span class="admin-file__thumb admin-file__thumb--doc" aria-hidden="true">' . pc_h(strtoupper($f['ext'])) . '</span>'))
+            . '<div class="admin-file__meta"><strong>' . pc_h($f['name']) . '</strong><span>' . pc_h(strtoupper($f['ext'])) . ' · ' . pc_h(pc_format_bytes((int) $f['size']))
+            . (!empty($f['width']) ? ' · ' . (int) $f['width'] . ' × ' . (int) $f['height'] . ' px' : '') . '</span>'
             . '<span class="admin-file__hash" title="Empreinte SHA-256">SHA-256 ' . pc_h(substr((string) $f['sha256'], 0, 16)) . '…</span></div>'
             . '<a class="btn btn--sm btn--primary" href="' . pc_h($base) . '">Télécharger<span class="visually-hidden"> ' . pc_h($f['name']) . '</span></a></li>';
     }
@@ -251,7 +277,7 @@ if ($requested !== '') {
 /* -------------------------------------------------------------- Liste */
 
 session_write_close();
-$filter = (string) ($_GET['statut'] ?? '');
+$filter = pc_param($_GET, 'statut');
 $all = pc_request_list();
 $counts = array_fill_keys(array_keys(PC_STATUSES), 0);
 foreach ($all as $r) {

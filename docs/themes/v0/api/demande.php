@@ -38,6 +38,7 @@ function pc_respond(int $status, array $payload, bool $json): never
         }
     }
     $title = $ok ? 'Demande envoyée' : 'Votre demande n’a pas été envoyée';
+    $backLabel = $ok ? 'Retour au site' : 'Recommencer la demande';
     echo '<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">',
         '<meta name="robots" content="noindex"><title>', pc_h($title), ' | PAPER CUP</title>',
         '<link rel="stylesheet" href="../assets/css/theme.bundle.css"></head><body>',
@@ -53,9 +54,11 @@ function pc_respond(int $status, array $payload, bool $json): never
             echo '<li>', pc_h($d), '</li>';
         }
         echo '</ul>';
-        echo '<p>Revenez à la page précédente pour corriger votre demande : les fichiers devront être sélectionnés à nouveau.</p>';
     }
-    echo '<div class="quote-result__actions"><a class="btn btn--accent" href="', pc_h($back), '">Retour au site</a>',
+    if (!$ok) {
+        echo '<p>Pour corriger votre demande sans la ressaisir, utilisez le bouton « Retour » de votre navigateur : vos informations y sont en général conservées, les fichiers devront être sélectionnés à nouveau.</p>';
+    }
+    echo '<div class="quote-result__actions"><a class="btn btn--accent" href="', pc_h($back), '">', pc_h($backLabel), '</a>',
         '<a class="btn btn--outline" href="tel:+21675290088">Appeler le 75 290 088</a></div>',
         '</div></div></main></body></html>';
     exit;
@@ -66,7 +69,8 @@ function pc_respond(int $status, array $payload, bool $json): never
 if ($method === 'GET' || $method === 'HEAD') {
     $limits = pc_upload_limits();
     $types = pc_allowed_types();
-    $available = pc_storage_root() !== null;
+    // mbstring est indispensable au nettoyage des saisies : sans elle, les formulaires restent en mode préparation.
+    $available = pc_storage_root() !== null && function_exists('mb_check_encoding');
     $mimes = [];
     foreach ($types as $t) {
         $mimes = array_merge($mimes, $t['mimes']);
@@ -118,22 +122,26 @@ if ($_POST === [] && $_FILES === [] && $length > 0) {
     ], $wantsJson);
 }
 
-if (pc_storage_root() === null) {
-    pc_log('storage unavailable');
+if (pc_storage_root() === null || !function_exists('mb_check_encoding')) {
+    pc_log('storage unavailable or mbstring missing');
     pc_respond(503, ['ok' => false, 'error' => 'unavailable', 'message' => 'Le service d’envoi est momentanément indisponible. Appelez PAPER CUP au ' . $phone . '.'], $wantsJson);
 }
 
 try {
     // Champ piège invisible : rempli uniquement par les robots.
-    if (trim((string) ($_POST['site_web'] ?? '')) !== '') {
+    if (trim(pc_param($_POST, 'site_web')) !== '' || is_array($_POST['site_web'] ?? null)) {
         pc_respond(422, ['ok' => false, 'error' => 'rejected', 'message' => 'Envoi refusé.'], $wantsJson);
     }
 
     $window = (int) pc_config()['rate_limit_window'];
     $maxCreate = max(1, (int) pc_config()['rate_limit_max']);
-    if (pc_rate('post', $window, true) > $maxCreate * 5 || pc_rate('create', $window, false) >= $maxCreate) {
+    $rateLimited = function () use ($window, $phone, $wantsJson): never {
         header('Retry-After: ' . $window);
         pc_respond(429, ['ok' => false, 'error' => 'rate_limited', 'message' => 'Trop de demandes envoyées depuis votre connexion. Réessayez plus tard ou appelez le ' . $phone . '.'], $wantsJson);
+    };
+    // Tentatives (y compris refusées) plafonnées sans croissance des compteurs ; créations vérifiées plus bas.
+    if (!pc_rate_take('post', $window, $maxCreate * 5) || pc_rate('create', $window, false) >= $maxCreate) {
+        $rateLimited();
     }
 
     [$fields, $fieldErrors] = pc_validate_fields($_POST);
@@ -152,8 +160,8 @@ try {
     }
 
     $incoming = array_sum(array_map(fn ($f) => $f['size'], $validFiles));
-    if (!pc_disk_ok($incoming)) {
-        pc_log('disk space below reserve');
+    if ($incoming > 0 && !pc_disk_ok($incoming)) {
+        pc_log('attachment storage full (quota or disk reserve)');
         pc_respond(507, [
             'ok' => false,
             'error' => 'storage_full',
@@ -161,15 +169,23 @@ try {
         ], $wantsJson);
     }
 
-    // Idempotence : clé générée par le navigateur et conservée entre les tentatives,
-    // sinon empreinte du contenu (double envoi sans JavaScript).
-    $key = (string) ($_POST['idempotence'] ?? '');
+    // Idempotence : clé générée par le navigateur et conservée entre les tentatives, LIÉE AU CONTENU
+    // (un renvoi identique retrouve la demande déjà créée ; un contenu modifié crée une nouvelle demande),
+    // sinon empreinte du contenu et du client (double envoi sans JavaScript).
+    $key = pc_param($_POST, 'idempotence');
     [$idemKey, $ttl] = preg_match('/^[A-Za-z0-9-]{16,64}$/', $key)
-        ? ['key:' . $key, 86400]
+        ? ['key:' . $key . '|' . pc_content_fingerprint($fields, $validFiles), 86400]
         : [pc_request_fingerprint($fields, $validFiles), 600];
 
-    $result = pc_idempotent($idemKey, $ttl, function () use ($fields, $validFiles, $window): array {
-        pc_rate('create', $window, true);
+    $result = pc_idempotent($idemKey, $ttl, function () use ($fields, $validFiles, $window, $maxCreate): array {
+        // Plafonds vérifiés et consommés atomiquement : par client, puis pour l'ensemble du site.
+        if (!pc_rate_take('create', $window, $maxCreate)) {
+            return ['ok' => false, 'error' => 'rate_limited'];
+        }
+        if (!pc_rate_take('create-all', 3600, max(1, (int) pc_config()['global_rate_max']), true)) {
+            pc_log('global request ceiling reached');
+            return ['ok' => false, 'error' => 'rate_limited'];
+        }
         $request = pc_request_create($fields, $validFiles);
         return [
             'ok' => true,
@@ -181,6 +197,9 @@ try {
                 : 'Votre demande a bien été transmise à PAPER CUP.',
         ];
     });
+    if (empty($result['ok'])) {
+        $rateLimited();
+    }
     pc_respond(empty($result['duplicate']) ? 201 : 200, $result + ['duplicate' => false], $wantsJson);
 } catch (Throwable $e) {
     pc_log('error: ' . $e->getMessage() . ' @' . basename($e->getFile()) . ':' . $e->getLine());

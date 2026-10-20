@@ -818,10 +818,13 @@
       it.el.classList.remove('is-error');
     });
     (list || []).forEach(function (e) {
-      var match = e.name &&
-        self.items.filter(function (it) {
+      // Position du fichier dans l'envoi (fiable même si deux fichiers portent le même nom), sinon nom.
+      var match = typeof e.index === 'number' && self.items[e.index] ? self.items[e.index] : null;
+      if (!match && e.name) {
+        match = self.items.filter(function (it) {
           return it.file.name === e.name || it.file.name.replace(/[<>:"|?*]/g, '_') === e.name;
         })[0];
+      }
       if (match) {
         match.error = e.message;
         match.errEl.textContent = e.message;
@@ -953,6 +956,19 @@
         });
         input.addEventListener('keydown', function (e) {
           if (e.key === 'Enter') e.preventDefault();
+        });
+      }
+
+      // Entrée sur une teinte ou un format : ne soumet pas le formulaire (comportement de l'aperçu d'origine).
+      root.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && e.target.matches && e.target.matches('[data-studio-ink], [data-studio-format]')) e.preventDefault();
+      });
+
+      // Le lien vers le devis détaillé ne transporte pas les fichiers joints : le signaler.
+      var ctaNote = PC.$('[data-cta-note]', root);
+      if (attach && ctaNote) {
+        attach.onChange(function (a) {
+          ctaNote.hidden = !a.items.length;
         });
       }
 
@@ -1297,6 +1313,9 @@
       PC.$$('[data-req-mark]', form).forEach(function (el) {
         el.hidden = !connected;
       });
+      PC.$$('[data-connected-note]', form).forEach(function (el) {
+        el.hidden = !connected;
+      });
       if (submitLabel) submitLabel.textContent = submitBtn.getAttribute(connected ? 'data-label-connected' : 'data-label-offline');
       if (note) note.textContent = note.getAttribute(connected ? 'data-note-connected' : 'data-note-offline');
       if (attach) attach.setConfig(cfg);
@@ -1320,10 +1339,18 @@
     if (params.get('qte') && /^\d+$/.test(params.get('qte'))) form.quantite.value = params.get('qte');
     if (params.get('marque')) form.societe.value = params.get('marque').slice(0, 80);
 
-    var isCustom = function () {
+    var typeValue = function () {
       var t = form.querySelector('input[name="type"]:checked');
-      return t && t.value === 'personnalise';
+      return t ? t.value : '';
     };
+    var isCustom = function () {
+      return typeValue() === 'personnalise';
+    };
+    // « Autre emballage » : gobelets plastique, pots à glace, pochettes… ; format de gobelet carton facultatif.
+    var isOther = function () {
+      return typeValue() === 'autre';
+    };
+    var TYPE_LABELS = { personnalise: 'Gobelet personnalisé', standard: 'Gobelet standard', autre: 'Autre emballage' };
 
     var updateQtyHint = function () {
       if (!qtyHint) return;
@@ -1331,7 +1358,8 @@
       var p = f && PC.product(f.value);
       var q = parseInt(form.quantite.value, 10);
       var txt = isCustom() ? 'Minimum ' + PC.fmt(MIN_CUSTOM) + ' gobelets pour une commande personnalisée.' : qtyHintDefault;
-      if (p && q > 0) txt += ' Soit environ ' + PC.fmt(cartonsFor(p, q)) + ' carton(s) de ' + PC.fmt(p.perBox) + ' pièces.';
+      if (p && q > 0 && !isOther()) txt += ' Soit environ ' + PC.fmt(cartonsFor(p, q)) + ' carton(s) de ' + PC.fmt(p.perBox) + ' pièces.';
+      if (isOther()) txt = 'Indiquez la quantité souhaitée et précisez le produit dans « Votre projet ».';
       qtyHint.textContent = txt;
     };
     form.addEventListener('change', updateQtyHint);
@@ -1346,7 +1374,7 @@
           return form.querySelector('input[name="type"]');
         },
         check: function () {
-          return form.querySelector('input[name="type"]:checked') ? '' : 'Choisissez un type de gobelet.';
+          return form.querySelector('input[name="type"]:checked') ? '' : 'Choisissez un type de produit.';
         },
         errorId: 'err-type',
       },
@@ -1356,7 +1384,7 @@
           return form.querySelector('input[name="format"]');
         },
         check: function () {
-          return form.querySelector('input[name="format"]:checked') ? '' : 'Choisissez un format de gobelet.';
+          return form.querySelector('input[name="format"]:checked') || isOther() ? '' : 'Choisissez un format de gobelet.';
         },
         errorId: 'err-format',
       },
@@ -1368,7 +1396,7 @@
         check: function () {
           var raw = form.quantite.value.trim();
           var q = parseInt(raw, 10);
-          if (!raw || isNaN(q) || q <= 0) return 'Indiquez une quantité de gobelets.';
+          if (!raw || isNaN(q) || q <= 0) return isOther() ? 'Indiquez une quantité.' : 'Indiquez une quantité de gobelets.';
           if (isCustom() && q < MIN_CUSTOM) return 'Les commandes personnalisées démarrent à ' + PC.fmt(MIN_CUSTOM) + ' gobelets.';
           return '';
         },
@@ -1471,18 +1499,16 @@
     };
 
     /* ------------------------------------------------------- Récapitulatif */
-    var buildSummary = function (reference) {
+    var buildSummary = function (reference, sentFiles) {
       var f = form.querySelector('input[name="format"]:checked');
-      var p = PC.product(f.value);
+      var p = f && PC.product(f.value);
       var q = parseInt(form.quantite.value, 10);
-      var lines = ['DEMANDE DE DEVIS — GOBELETS EN CARTON', ''];
+      var lines = [isOther() ? 'DEMANDE DE DEVIS — EMBALLAGES' : 'DEMANDE DE DEVIS — GOBELETS EN CARTON', ''];
       if (reference) lines.push('Référence   : ' + reference);
-      lines.push(
-        'Type        : ' + (isCustom() ? 'Gobelet personnalisé' : 'Gobelet standard'),
-        'Format      : ' + p.label + ' (modèle ' + p.model + ')',
-        'Quantité    : ' + PC.fmt(q) + ' gobelets',
-        'Estimation  : environ ' + PC.fmt(cartonsFor(p, q)) + ' carton(s) de ' + PC.fmt(p.perBox) + ' pièces',
-      );
+      lines.push('Type        : ' + (TYPE_LABELS[typeValue()] || ''));
+      if (p) lines.push('Format      : ' + p.label + ' (modèle ' + p.model + ')');
+      lines.push('Quantité    : ' + PC.fmt(q) + (isOther() ? ' pièces' : ' gobelets'));
+      if (p && !isOther()) lines.push('Estimation  : environ ' + PC.fmt(cartonsFor(p, q)) + ' carton(s) de ' + PC.fmt(p.perBox) + ' pièces');
       var opt = [
         ['Société     : ', form.societe.value],
         ['Contact     : ', form.nom.value],
@@ -1494,7 +1520,15 @@
         if (o[1].trim()) lines.push(o[0] + o[1].trim());
       });
       if (form.message.value.trim()) lines.push('', 'Projet :', form.message.value.trim());
-      lines = lines.concat(filesSummary(attach, reference ? 'Fichiers transmis :' : 'Fichiers à joindre à l’e-mail :'));
+      if (sentFiles) {
+        // Envoi réel : la liste vient de la réponse du serveur (fichiers effectivement enregistrés).
+        if (sentFiles.length) {
+          lines.push('', 'Fichiers transmis :');
+          sentFiles.forEach(function (fl) {
+            lines.push('- ' + fl.name + ' (' + PC.bytes(fl.size) + ')');
+          });
+        }
+      } else lines = lines.concat(filesSummary(attach, 'Fichiers à joindre à l’e-mail :'));
       return lines.join('\n');
     };
 
@@ -1549,10 +1583,14 @@
       showSummary(list, PC.sendError(res, phone));
     };
 
+    var pending = false; // envoi demandé pendant le chargement de la configuration : un seul traitement
     form.addEventListener('submit', function (e) {
       e.preventDefault();
-      if (sending) return;
+      if (sending || pending) return;
+      pending = true;
       ready.then(function () {
+        pending = false;
+        if (sending) return;
         var errors = validate();
         if (attach && attach.hasErrors()) {
           errors.push({ msg: 'Retirez ou remplacez les fichiers signalés dans la liste des pièces jointes.' });
@@ -1564,7 +1602,7 @@
         errorsBox.hidden = true;
 
         if (!connected) {
-          var prep = buildSummary('');
+          var prep = buildSummary('', null);
           showResult(
             'Votre demande est prête',
             'Rien n’a encore été envoyé : transmettez ce récapitulatif par e-mail (votre messagerie s’ouvre avec la demande pré-remplie), par téléphone, ou copiez-le.' +
@@ -1583,8 +1621,9 @@
             var ref = res.data.id;
             showResult(
               'Demande envoyée',
-              res.data.message + ' Référence : ' + ref + '.' + (res.data.notified ? '' : ' Pour un traitement rapide, vous pouvez aussi appeler le ' + phone + '.'),
-              buildSummary(ref),
+              (res.data.duplicate ? 'Cette demande avait déjà été enregistrée : elle n’a pas été envoyée une seconde fois.' : res.data.message) +
+                ' Référence : ' + ref + '.' + (res.data.notified ? '' : ' Pour un traitement rapide, vous pouvez aussi appeler le ' + phone + '.'),
+              buildSummary(ref, res.data.files || []),
               true,
             );
             idempotence(form, true);
@@ -1733,10 +1772,14 @@
         if (attach) attach.setBusy(on);
       };
 
+      var pending = false;
       form.addEventListener('submit', function (e) {
         e.preventDefault();
-        if (sending) return;
+        if (sending || pending) return;
+        pending = true;
         ready.then(function () {
+          pending = false;
+          if (sending) return;
           if (!connected) {
             // Sans service d'envoi : la demande se poursuit dans le formulaire de devis.
             if (cta) location.href = cta.href;
@@ -1761,7 +1804,8 @@
             if (res.data && res.data.ok) {
               PC.$('[data-result-ref]', result).textContent = res.data.id;
               PC.$('[data-result-text]', result).textContent =
-                res.data.message + (res.data.notified ? '' : ' Pour un traitement rapide, vous pouvez aussi appeler le ' + phone + '.');
+                (res.data.duplicate ? 'Cette demande avait déjà été enregistrée : elle n’a pas été envoyée une seconde fois.' : res.data.message) +
+                (res.data.notified ? '' : ' Pour un traitement rapide, vous pouvez aussi appeler le ' + phone + '.');
               form.classList.add('is-sent');
               result.hidden = false;
               result.focus();

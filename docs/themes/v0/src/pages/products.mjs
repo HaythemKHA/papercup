@@ -129,7 +129,7 @@ export const productsPage = {
         <span class="feature__icon">${icon('clipboard')}</span>
         <h3>Votre projet d’emballage</h3>
         <p>Décrivez le produit souhaité dans votre demande de devis et joignez votre logo si vous l’avez.</p>
-        <p class="feature__actions"><a class="btn btn--accent btn--sm" href="${r}contact.html#devis">Demander un devis ${icon('arrow-right')}</a><a class="link-arrow" href="${site.facebook}" rel="noopener" target="_blank">Page Facebook ${icon('arrow-up-right')}<span class="visually-hidden"> (nouvel onglet)</span></a></p>
+        <p class="feature__actions"><a class="btn btn--accent btn--sm" href="${r}contact.html?type=autre#devis">Demander un devis ${icon('arrow-right')}</a><a class="link-arrow" href="${site.facebook}" rel="noopener" target="_blank">Page Facebook ${icon('arrow-up-right')}<span class="visually-hidden"> (nouvel onglet)</span></a></p>
       </article>
     </div>
   </div>

@@ -6,7 +6,7 @@ import { site, fullAddress } from '../data/site.mjs';
 import { products } from '../data/products.mjs';
 import { defs, icon, cup } from '../lib/svg.mjs';
 
-const ASSET_VERSION = '1.0.0';
+const ASSET_VERSION = '1.1.0';
 
 const NAV = [
   { href: 'personnalisation.html', label: 'Personnalisation' },

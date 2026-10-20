@@ -25,10 +25,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
     $deny(405, 'Méthode non autorisée.');
 }
 
-$id = (string) ($_GET['d'] ?? '');
-$stored = (string) ($_GET['f'] ?? '');
-$expires = (string) ($_GET['e'] ?? '');
-$signature = (string) ($_GET['s'] ?? '');
+$id = pc_param($_GET, 'd');
+$stored = pc_param($_GET, 'f');
+$expires = pc_param($_GET, 'e');
+$signature = pc_param($_GET, 's');
 
 if (!preg_match(PC_ID_PATTERN, $id) || !preg_match(PC_STORED_PATTERN, $stored) || !ctype_digit($expires) || !preg_match('/^[a-f0-9]{64}$/', $signature)) {
     $deny(400, 'Lien invalide.');
@@ -37,7 +37,7 @@ if (pc_storage_root() === null) {
     $deny(503, 'Service momentanément indisponible.');
 }
 // Limite les essais de signature depuis une même connexion.
-if (pc_rate('file', 3600, true) > 300) {
+if (!pc_rate_take('file', 3600, 300)) {
     header('Retry-After: 3600');
     $deny(429, 'Trop de téléchargements. Réessayez plus tard.');
 }

@@ -94,6 +94,19 @@
         });
       }
 
+      // Entrée sur une teinte ou un format : ne soumet pas le formulaire (comportement de l'aperçu d'origine).
+      root.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && e.target.matches && e.target.matches('[data-studio-ink], [data-studio-format]')) e.preventDefault();
+      });
+
+      // Le lien vers le devis détaillé ne transporte pas les fichiers joints : le signaler.
+      var ctaNote = PC.$('[data-cta-note]', root);
+      if (attach && ctaNote) {
+        attach.onChange(function (a) {
+          ctaNote.hidden = !a.items.length;
+        });
+      }
+
       root.addEventListener('change', function (e) {
         if (e.target.hasAttribute('data-studio-ink')) root.style.setProperty('--print', e.target.value);
         if (e.target.hasAttribute('data-studio-format')) {

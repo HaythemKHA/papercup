@@ -4,8 +4,10 @@
  *
  *   php api/tools/hash-password.php
  *
- * Le mot de passe est saisi sans écho ; seule l'empreinte (password_hash) est affichée,
- * à recopier dans api/config.local.php (admin_password_hash) ou PC_ADMIN_PASSWORD_HASH.
+ * Le mot de passe est saisi sans écho quand le terminal le permet ; seule l'empreinte (password_hash)
+ * est affichée, à recopier dans api/config.local.php (admin_password_hash) ou PC_ADMIN_PASSWORD_HASH.
+ * Sans accès en ligne de commande : php -r "echo password_hash('votre mot de passe', PASSWORD_DEFAULT);"
+ * sur un poste de confiance (l'empreinte est la même quel que soit le poste).
  */
 
 declare(strict_types=1);
@@ -17,7 +19,8 @@ if (PHP_SAPI !== 'cli') {
 
 $read = function (string $prompt): string {
     fwrite(STDOUT, $prompt);
-    $tty = DIRECTORY_SEPARATOR === '/' && function_exists('posix_isatty') && posix_isatty(STDIN);
+    // Saisie masquée si possible (stty) ; sinon saisie visible : shell_exec est souvent désactivé sur les hébergements.
+    $tty = DIRECTORY_SEPARATOR === '/' && function_exists('posix_isatty') && posix_isatty(STDIN) && function_exists('shell_exec');
     if ($tty) {
         shell_exec('stty -echo');
     }

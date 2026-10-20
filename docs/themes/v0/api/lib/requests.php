@@ -14,6 +14,7 @@ const PC_MIN_CUSTOM = 5000;
 const PC_PHONE_PATTERN = '/^[+()\d\s.\-]{8,20}$/';
 const PC_STATUSES = ['nouvelle' => 'Nouvelle', 'en-cours' => 'En cours', 'traitee' => 'Traitée'];
 const PC_FORM_LABELS = ['devis' => 'Demande de devis', 'essai' => 'Essayez votre marque'];
+const PC_QUOTE_TYPES = ['personnalise' => 'Gobelet personnalisé', 'standard' => 'Gobelet standard', 'autre' => 'Autre emballage'];
 
 /**
  * Valide les champs texte d'une demande.
@@ -54,11 +55,12 @@ function pc_validate_fields(array $in): array
 
     if ($form === 'devis') {
         $type = $in['type'] ?? '';
-        $d['type'] = is_string($type) && in_array($type, ['personnalise', 'standard'], true) ? $type : '';
+        $d['type'] = is_string($type) && isset(PC_QUOTE_TYPES[$type]) ? $type : '';
         if ($d['type'] === '') {
-            $errors['type'] = 'Choisissez un type de gobelet.';
+            $errors['type'] = 'Choisissez un type de produit.';
         }
-        if ($d['format'] === '') {
+        // « Autre emballage » (gobelets plastique, pots à glace, pochettes…) : le format de gobelet carton est facultatif.
+        if ($d['format'] === '' && $d['type'] !== 'autre') {
             $errors['format'] = 'Choisissez un format de gobelet.';
         }
         if ($qty <= 0) {
@@ -86,16 +88,18 @@ function pc_request_rows(array $r): array
     $fmt = fn ($n) => number_format((int) $n, 0, ',', ' ');
     $rows = [];
     if (($f['formulaire'] ?? '') === 'devis') {
-        $rows['Type'] = ($f['type'] ?? '') === 'personnalise' ? 'Gobelet personnalisé' : 'Gobelet standard';
+        $rows['Type'] = PC_QUOTE_TYPES[$f['type'] ?? ''] ?? '—';
     } else {
         $rows['Nom sur le gobelet'] = ($f['marque'] ?? '') !== '' ? $f['marque'] : '—';
         if (($f['encre'] ?? '') !== '') {
             $rows['Teinte d’aperçu'] = PC_INKS[$f['encre']] . ' (' . $f['encre'] . ')';
         }
     }
-    $rows['Format'] = PC_FORMAT_LABELS[$f['format'] ?? ''] ?? '—';
+    if (($f['format'] ?? '') !== '') {
+        $rows['Format'] = PC_FORMAT_LABELS[$f['format']] ?? '—';
+    }
     if (!empty($f['quantite'])) {
-        $rows['Quantité'] = $fmt($f['quantite']) . ' gobelets';
+        $rows['Quantité'] = $fmt($f['quantite']) . (($f['type'] ?? '') === 'autre' ? ' pièces' : ' gobelets');
     }
     foreach (['societe' => 'Société', 'nom' => 'Contact', 'telephone' => 'Téléphone', 'email' => 'E-mail', 'ville' => 'Ville'] as $k => $label) {
         if (($f[$k] ?? '') !== '') {
@@ -108,13 +112,19 @@ function pc_request_rows(array $r): array
     return $rows;
 }
 
-/** Empreinte d'une demande (déduplication des renvois sans clé d'idempotence, ex. sans JavaScript). */
-function pc_request_fingerprint(array $fields, array $files): string
+/** Empreinte du contenu d'une demande : champs nettoyés + empreintes des fichiers. */
+function pc_content_fingerprint(array $fields, array $files): string
 {
     $parts = $fields;
     ksort($parts);
     $parts['__files'] = array_map(fn ($f) => $f['sha256'], $files);
-    return 'fp:' . hash('sha256', json_encode($parts, JSON_UNESCAPED_UNICODE) . '|' . pc_client_ip());
+    return hash('sha256', (string) json_encode($parts, JSON_UNESCAPED_UNICODE));
+}
+
+/** Empreinte de déduplication des renvois sans clé d'idempotence (ex. sans JavaScript) : contenu + client. */
+function pc_request_fingerprint(array $fields, array $files): string
+{
+    return 'fp:' . hash('sha256', pc_content_fingerprint($fields, $files) . '|' . pc_client_ip());
 }
 
 /** Page d'origine (chemin seul, même site uniquement). */
@@ -161,7 +171,14 @@ function pc_request_create(array $fields, array $validFiles): array
         pc_request_delete($id);
         throw new RuntimeException('Enregistrement de la demande impossible.');
     }
-    $request['notification'] = pc_notify($request);
+    // La demande est déjà enregistrée : un échec de notification (mail() désactivé…) ne doit ni la perdre
+    // ni provoquer une erreur qui pousserait le visiteur à la renvoyer.
+    try {
+        $request['notification'] = pc_notify($request);
+    } catch (Throwable $e) {
+        pc_log('notify error for ' . $id . ': ' . $e->getMessage());
+        $request['notification'] = ['status' => 'echec', 'at' => date('c')];
+    }
     pc_request_save($request);
     pc_log(sprintf('request %s created (%s, %d file(s), notification %s)', $id, $fields['formulaire'], count($files), $request['notification']['status']));
     return $request;

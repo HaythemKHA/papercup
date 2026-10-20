@@ -48,7 +48,7 @@ export const faq = (r = '') => [
     group: 'gamme',
     tags: [],
     q: 'Proposez-vous d’autres emballages que les gobelets en carton ?',
-    a: `<p>Sur sa page Facebook, PAPER CUP présente aussi des gobelets plastique personnalisés (10, 12, 14 et 16&nbsp;oz), des gobelets transparents personnalisables pour les boissons froides, des gobelets à glace en carton (1 boule de 55&nbsp;cc, 2 boules de 85&nbsp;cc), des pochettes personnalisées (tailles 0 à 4) et des papiers plateaux personnalisés. Précisez le produit qui vous intéresse dans votre demande de devis.</p><p><a href="${r}produits.html#autres-emballages">Voir les autres emballages</a></p>`,
+    a: `<p>Sur sa page Facebook, PAPER CUP présente aussi des gobelets plastique personnalisés (10, 12, 14 et 16&nbsp;oz), des gobelets transparents personnalisables pour les boissons froides, des gobelets à glace en carton (1 boule de 55&nbsp;cc, 2 boules de 85&nbsp;cc), des pochettes personnalisées (tailles 0 à 4) et des papiers plateaux personnalisés. Choisissez « Autre emballage » dans le <a href="${r}contact.html?type=autre#devis">formulaire de devis</a> et précisez le produit qui vous intéresse.</p><p><a href="${r}produits.html#autres-emballages">Voir les autres emballages</a></p>`,
   },
   {
     id: 'usages',
@@ -112,6 +112,8 @@ export const faq = (r = '') => [
 export const plain = (html) =>
   html
     .replace(/<span class="visually-hidden">[^<]*<\/span>/g, '')
+    .replace(/&nbsp;/g, '\u00a0')
+    .replace(/&amp;/g, '&')
     .replace(/<li>/g, ' ')
     .replace(/<[^>]+>/g, '')
     .replace(/\s+/g, ' ')

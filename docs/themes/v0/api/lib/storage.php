@@ -83,16 +83,20 @@ function pc_secret(): string
         throw new RuntimeException('Stockage indisponible : secret impossible à initialiser.');
     }
     $file = $root . '/secret.key';
-    if (!is_file($file)) {
-        // Mode « x » : un seul processus crée le fichier, les autres le relisent.
-        $fh = @fopen($file, 'x');
-        if ($fh !== false) {
-            fwrite($fh, bin2hex(random_bytes(32)));
-            fclose($fh);
-            @chmod($file, 0600);
+    $read = fn () => trim((string) @file_get_contents($file));
+    if (strlen($read()) < 32) {
+        // Écrit dans un fichier temporaire complet, puis le publie : jamais de secret vide ou tronqué.
+        // link() échoue si un autre processus l'a créé entre-temps : on relit alors le sien.
+        $tmp = $file . '.tmp-' . bin2hex(random_bytes(6));
+        if (@file_put_contents($tmp, bin2hex(random_bytes(32))) === 64) {
+            @chmod($tmp, 0600);
+            if (!@link($tmp, $file) && strlen($read()) < 32) {
+                @rename($tmp, $file);
+            }
         }
+        @unlink($tmp);
     }
-    $value = trim((string) @file_get_contents($file));
+    $value = $read();
     if (strlen($value) < 32) {
         throw new RuntimeException('Secret de stockage illisible.');
     }
@@ -268,13 +272,13 @@ function pc_gc(string $dir, int $maxAge): void
  * Fenêtre glissante par client (adresse IP hachée, jamais stockée en clair).
  * Renvoie le nombre d'événements dans la fenêtre, après enregistrement éventuel du nouvel événement.
  */
-function pc_rate(string $bucket, int $window, bool $record): int
+function pc_rate(string $bucket, int $window, bool $record, ?int $max = null, bool $global = false): int
 {
     $dir = pc_storage_path('ratelimit');
     if ($dir === null) {
         return 0;
     }
-    $who = hash_hmac('sha256', $bucket . '|' . pc_client_ip(), pc_secret());
+    $who = hash_hmac('sha256', $bucket . '|' . ($global ? '*' : pc_client_ip()), pc_secret());
     $fh = fopen($dir . '/' . $bucket . '-' . substr($who, 0, 40) . '.json', 'c+');
     if ($fh === false || !flock($fh, LOCK_EX)) {
         return 0;
@@ -283,13 +287,17 @@ function pc_rate(string $bucket, int $window, bool $record): int
         $hits = json_decode((string) stream_get_contents($fh), true);
         $now = time();
         $hits = array_values(array_filter(is_array($hits) ? $hits : [], fn ($t) => is_int($t) && $t > $now - $window));
-        if ($record) {
+        // Avec $max : vérification et enregistrement sous le même verrou (aucun dépassement par envois simultanés),
+        // et rien n'est enregistré au-delà du plafond (le fichier ne grossit plus).
+        if ($record && ($max === null || count($hits) < $max)) {
             $hits[] = $now;
+            $hits = array_slice($hits, -1000);
             ftruncate($fh, 0);
             rewind($fh);
             fwrite($fh, json_encode($hits));
+            return $max === null ? count($hits) : 0;
         }
-        return count($hits);
+        return $max === null ? count($hits) : count($hits) + 1;
     } finally {
         flock($fh, LOCK_UN);
         fclose($fh);
@@ -297,6 +305,12 @@ function pc_rate(string $bucket, int $window, bool $record): int
             pc_gc($dir, max($window, 86400));
         }
     }
+}
+
+/** Prend une place dans la fenêtre si le plafond n'est pas atteint (vérification et enregistrement atomiques). */
+function pc_rate_take(string $bucket, int $window, int $max, bool $global = false): bool
+{
+    return pc_rate($bucket, $window, true, max(1, $max), $global) === 0;
 }
 
 /** Réinitialise un compteur (connexion réussie). */
@@ -309,13 +323,37 @@ function pc_rate_reset(string $bucket): void
     }
 }
 
-/** Reste-t-il assez d'espace disque pour enregistrer $incoming octets en gardant la réserve configurée ? */
+/**
+ * Les pièces jointes ($incoming octets) peuvent-elles être enregistrées ? Deux garde-fous :
+ * le volume total conservé (storage_max_bytes, indépendant des quotas que disk_free_space() ne voit pas)
+ * et la réserve d'espace disque (min_free_bytes). Les demandes sans fichier ne sont jamais concernées.
+ */
 function pc_disk_ok(int $incoming): bool
 {
+    if ($incoming <= 0) {
+        return true;
+    }
+    $max = (int) pc_config()['storage_max_bytes'];
+    if ($max > 0 && pc_storage_used() + $incoming > $max) {
+        return false;
+    }
     $root = pc_storage_root();
-    $free = $root === null ? false : @disk_free_space($root);
+    $free = $root === null || !function_exists('disk_free_space') ? false : @disk_free_space($root);
     if ($free === false) {
-        return true; // Fonction désactivée par l'hébergeur : on ne bloque pas sur une donnée inconnue.
+        return true; // Fonction désactivée par l'hébergeur : seul le plafond storage_max_bytes s'applique.
     }
     return $free - $incoming >= (int) pc_config()['min_free_bytes'];
+}
+
+/** Volume des pièces jointes conservées (d'après les fiches des demandes). */
+function pc_storage_used(): int
+{
+    $base = pc_storage_path('requests');
+    $total = 0;
+    foreach ($base === null ? [] : (glob($base . '/PC-*/request.json') ?: []) as $file) {
+        foreach ((pc_read_json($file)['files'] ?? []) as $f) {
+            $total += (int) ($f['size'] ?? 0);
+        }
+    }
+    return $total;
 }

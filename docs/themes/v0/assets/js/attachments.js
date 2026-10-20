@@ -448,10 +448,13 @@
       it.el.classList.remove('is-error');
     });
     (list || []).forEach(function (e) {
-      var match = e.name &&
-        self.items.filter(function (it) {
+      // Position du fichier dans l'envoi (fiable même si deux fichiers portent le même nom), sinon nom.
+      var match = typeof e.index === 'number' && self.items[e.index] ? self.items[e.index] : null;
+      if (!match && e.name) {
+        match = self.items.filter(function (it) {
           return it.file.name === e.name || it.file.name.replace(/[<>:"|?*]/g, '_') === e.name;
         })[0];
+      }
       if (match) {
         match.error = e.message;
         match.errEl.textContent = e.message;

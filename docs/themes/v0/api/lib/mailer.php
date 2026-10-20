@@ -62,23 +62,31 @@ function pc_notification_content(array $r): array
     }
 
     $lines[] = '';
+    $base = pc_site_url();
     if ($count === 0) {
         $lines[] = 'Pièces jointes : aucune.';
     } else {
         $expires = time() + (int) pc_config()['signed_link_ttl'];
         $lines[] = sprintf('PIÈCES JOINTES (%d)', $count);
         $lines[] = 'Les fichiers ne sont pas joints à cet e-mail : ils sont conservés dans l’espace privé du site.';
-        $lines[] = 'Liens personnels valables jusqu’au ' . date('d/m/Y à H:i', $expires) . ' — ne pas transférer cet e-mail.';
+        if ($base !== null) {
+            $lines[] = 'Liens personnels valables jusqu’au ' . date('d/m/Y à H:i', $expires) . ' — ne pas transférer cet e-mail.';
+        } else {
+            // Sans adresse configurée, aucun lien n'est construit (l'en-tête Host de la requête n'est pas fiable).
+            $lines[] = 'Consultez-les dans l’espace d’administration du site (option site_url non configurée : aucun lien direct).';
+        }
         foreach (array_values($files) as $i => $f) {
             $lines[] = '';
             $lines[] = sprintf('%d. %s — %s, %s', $i + 1, $f['name'], strtoupper($f['ext']), pc_format_bytes((int) $f['size']));
-            $lines[] = '   ' . pc_signed_file_url($r['id'], $f['stored'], $expires);
+            if ($base !== null) {
+                $lines[] = '   ' . pc_signed_file_url($r['id'], $f['stored'], $expires);
+            }
         }
     }
-    if (pc_admin_enabled()) {
+    if (pc_admin_enabled() && $base !== null) {
         $lines[] = '';
         $lines[] = 'Fiche de la demande (connexion requise) :';
-        $lines[] = pc_site_url() . '/admin/?demande=' . rawurlencode($r['id']);
+        $lines[] = $base . '/admin/?demande=' . rawurlencode($r['id']);
     }
     $lines[] = '';
     $lines[] = '—';
@@ -125,7 +133,7 @@ function pc_notify(array $r): array
         return ['status' => $ok ? 'fichier' : 'echec', 'at' => $at];
     }
 
-    $ok = @mail($to, $encodedSubject, $encodedBody, implode("\r\n", $headers));
+    $ok = function_exists('mail') && @mail($to, $encodedSubject, $encodedBody, implode("\r\n", $headers));
     if (!$ok) {
         pc_log('notification failed for ' . $r['id']);
     }

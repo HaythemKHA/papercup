@@ -35,7 +35,7 @@ python3 -m http.server 8080        # ou : npx serve .
 | `personnalisation.html` | Gobelets personnalisés : formulaire « Essayez votre marque », essentiel, visibilité, réalisations, préparation du projet, FAQ |
 | `entreprise.html` | L'entreprise : fiche, mission, repères et salons (`#salons`), références, adresse |
 | `faq.html` | Questions fréquentes, en 3 groupes (`FAQPage` en JSON-LD) |
-| `contact.html` | Coordonnées complètes (dont WhatsApp) et formulaire « Demande de devis » avec pièces jointes (`#devis`) |
+| `contact.html` | Coordonnées complètes (dont WhatsApp) et formulaire « Demande de devis » avec pièces jointes (`#devis`, `?type=autre` pour les autres emballages) |
 | `404.html` | Page d'erreur (`noindex`, liens absolus depuis la racine) |
 | `api/demande.php` · `api/fichier.php` | API des demandes et téléchargement par lien signé (PHP, voir § 6) |
 | `admin/` | Espace d'administration des demandes (PHP, accès protégé) |
@@ -142,7 +142,8 @@ Au chargement, chaque formulaire interroge `GET api/demande.php` (chemin défini
 | Formats | PNG, JPG, JPEG, WEBP, PDF. SVG, AI (compatible PDF), EPS et PSD sont **désactivés par défaut** (`allow_design_files`, voir Sécurité) |
 | Contrôles serveur | Champs (mêmes règles que le navigateur), nombre, taille unitaire et totale, extension autorisée **et** type réel détecté (`finfo`), structure (image décodable et dimensions, en-tête et fin de PDF, signatures PSD/EPS, SVG sans script ni ressource externe), doublons, espace disque |
 | Stockage | Dossier privé **hors de la racine web** : `requests/<référence>/request.json` et `files/01-<16 hexadécimaux>.<ext>`. Le nom d'origine n'est conservé que comme libellé ; empreinte SHA-256 enregistrée |
-| Notification | E-mail texte à `notify_to` (par défaut `paper.cup@hotmail.fr`), via la fonction `mail()` du serveur comme l'ancien site. **Aucun fichier n'est joint** : l'e-mail liste les pièces jointes et donne un lien de téléchargement signé (HMAC-SHA256, valable 7 jours) pour chacune, plus un lien vers la fiche dans l'administration. `Reply-To` = e-mail du client s'il l'a indiqué |
+| Notification | E-mail texte à `notify_to` (par défaut `paper.cup@hotmail.fr`), via la fonction `mail()` du serveur comme l'ancien site. **Aucun fichier n'est joint** : l'e-mail liste les pièces jointes et donne un lien de téléchargement signé (HMAC-SHA256, valable 7 jours) pour chacune, plus un lien vers la fiche dans l'administration. Les liens ne sont construits qu'à partir de `site_url` (jamais de l'en-tête `Host` de la requête) : sans cette option, l'e-mail renvoie vers l'administration sans lien. `Reply-To` = e-mail du client s'il l'a indiqué |
+| Types de demande | Devis : gobelet personnalisé (minimum 5 000), standard, ou **autre emballage** (gobelets plastique, pots à glace, pochettes… : format de gobelet carton facultatif, pas de minimum). Essai : nom sur le gobelet, teinte et format de l'aperçu, coordonnées |
 | Consultation | `admin/` : connexion, liste filtrable par statut, fiche (champs, pièces jointes avec aperçu des images, téléchargement), changement de statut, suppression confirmée |
 
 ### Installation sur l'hébergement
@@ -164,13 +165,17 @@ Prérequis : PHP **8.1 ou plus** avec `fileinfo`, `mbstring` et `json` (présent
 |---|---|---|
 | `storage_dir` (`PC_STORAGE_DIR`) | `../papercup-data` | Dossier privé des demandes |
 | `max_files` · `max_file_bytes` · `max_total_bytes` | 5 · 10 Mo · 25 Mo | Limites applicatives (plafonnées par php.ini) |
-| `min_free_bytes` | 200 Mo | Réserve d'espace disque : au-delà, les fichiers sont refusés (la demande sans fichier reste possible) |
+| `max_request_bytes` | 0 (non renseignée) | Taille maximale d'une requête fixée par le serveur web (Nginx `client_max_body_size`, Apache `LimitRequestBody`), si elle est inférieure à `post_max_size` |
+| `storage_max_bytes` | 2 Go | Volume total des pièces jointes conservées (indépendant des quotas d'hébergement) |
+| `min_free_bytes` | 200 Mo | Réserve d'espace disque. Au-delà de l'une ou l'autre limite, les fichiers sont refusés ; la demande sans fichier reste toujours possible |
 | `allow_design_files` | `false` | Active SVG, AI, EPS et PSD |
 | `notify_to` · `mail_from` · `mail_transport` | `paper.cup@hotmail.fr` · `no-reply@papercup.com.tn` · `mail` | Notification (`mail`, `file` pour les tests, `none`) |
 | `site_url` · `signed_link_ttl` | déduit · 7 jours | Liens de la notification |
-| `admin_user` · `admin_password_hash` · `admin_session_ttl` | `papercup` · vide · 30 min | Administration |
-| `rate_limit_max` · `rate_limit_window` | 20 · 1 h | Demandes par connexion |
-| `login_max_attempts` · `login_window` | 5 · 15 min | Tentatives de connexion |
+| `admin_user` · `admin_password_hash` · `admin_session_ttl` | `papercup` · vide · 30 min | Administration (sans accès SSH : `php -r "echo password_hash('…', PASSWORD_DEFAULT);"` sur un poste de confiance) |
+| `rate_limit_max` · `rate_limit_window` | 20 · 1 h | Demandes par connexion (adresse IPv4, ou préfixe /64 en IPv6) |
+| `global_rate_max` | 200 / h | Demandes par heure pour l'ensemble du site |
+| `login_max_attempts` · `login_window` | 5 · 15 min | Tentatives de connexion par connexion (10 fois plus pour l'ensemble du site) |
+| `force_https` | `false` | Impose HTTPS à l'administration (à activer si le serveur ne redirige pas déjà tout le site) |
 | `allowed_origins` | aucune | Origines supplémentaires autorisées à envoyer le formulaire |
 | `secret` (`PC_SECRET`) | généré | Secret HMAC ; créé automatiquement dans le stockage s'il est vide |
 | `timezone` | `Africa/Tunis` | Dates des références et des notifications |
@@ -180,9 +185,11 @@ Prérequis : PHP **8.1 ou plus** avec `fileinfo`, `mbstring` et `json` (présent
 - **Aucune exécution ni interprétation des fichiers** : jamais servis directement, ni convertis, ni redimensionnés par le serveur.
 - **Téléchargement** : `Content-Disposition: attachment`, `application/octet-stream`, `X-Content-Type-Options: nosniff`, CSP `sandbox`. Seuls PNG, JPEG et WEBP sont affichés en aperçu, et uniquement dans l'administration.
 - **Accès** : liens signés à durée limitée (sans signature valide : 403 ; expiré : 410) ou session d'administration (cookie `HttpOnly`, `SameSite=Strict`, `Secure` en HTTPS, régénéré à la connexion, expiration après 30 min d'inactivité, jeton CSRF sur chaque action, 5 tentatives par quart d'heure).
-- **Envoi** : origine vérifiée (`Origin`), champ piège anti-robots, limitation par connexion (adresse IP hachée, jamais stockée en clair), idempotence avec verrou exclusif.
+- **Envoi** : origine vérifiée (`Origin`), champ piège anti-robots, limitation par connexion et pour l'ensemble du site (adresse IP hachée, jamais stockée en clair ; vérification et décompte atomiques), idempotence avec verrou exclusif. La clé d'idempotence est liée au contenu : un renvoi identique retrouve la demande existante, une demande modifiée en crée une nouvelle.
+- **Robustesse** : erreurs PHP jamais affichées, paramètres en tableau refusés, images limitées à 10 000 px de côté et 40 Mpx (miniature de l'administration au-delà de 16 Mpx remplacée par un lien), envoi de fichiers désactivé automatiquement sans l'extension `fileinfo`, formulaires en mode préparation sans `mbstring`, notification en échec sans perte de la demande.
 - **Défense en profondeur** : `.htaccess` « Require all denied » dans `api/lib`, `api/tools`, `tests` et chaque dossier du stockage ; l'administration signale un stockage placé par erreur sous la racine web.
 - **Nginx** (n'utilise pas les `.htaccess`) : ajouter `location ~ ^/(api/(lib|tools)|tests|src|tools)/ { deny all; }` et `location ~ /\. { deny all; }`, et garder le stockage hors de la racine.
+- **Taille des requêtes côté serveur web** : `client_max_body_size` (Nginx) et `LimitRequestBody` (Apache) doivent être au moins égaux à `post_max_size`, sinon renseigner `max_request_bytes`. Pour les connexions lentes, prévoir `max_input_time` (PHP) et les délais du serveur web en conséquence.
 - **Fichiers de création** : un SVG peut contenir du script, un EPS est un programme PostScript, un PSD n'est pas lisible par le navigateur. Avec `allow_design_files`, ils sont acceptés après contrôle de signature (SVG refusé s'il contient script, entité XML, gestionnaire d'événement ou ressource externe), jamais prévisualisés, toujours téléchargés. À n'activer que si l'équipe ouvre ces fichiers avec ses logiciels habituels, sur des postes à jour.
 - **HTTPS obligatoire** en production pour l'administration et les liens signés.
 - **Conservation** : les demandes restent jusqu'à leur suppression dans l'administration. Une durée de conservation est à définir avec PAPER CUP.
@@ -246,11 +253,13 @@ PHP 8.3.6 (serveur intégré + `tests/router.php`), Chromium (Playwright 1.56), 
 | Test | Résultat |
 |---|---|
 | `php -l` | 0 erreur sur les 11 fichiers PHP |
-| `node --test tests/api.test.mjs` | **23/23** : limites effectives, demande sans fichier, fichiers rattachés et renommés, validation serveur, faux PNG / double extension / `.php` / SVG / exécutable / PDF tronqué refusés, nom malveillant neutralisé, nombre / taille / taille totale (413), idempotence (renvoi, envois simultanés, envoi sans JavaScript), origine étrangère, champ piège, réponse HTML sans JS, notification (pièces jointes signalées, aucun fichier joint, liens signés), liens falsifiés / expirés / d'une autre demande, accès direct interdit, administration (accès, cookie, CSRF, mots de passe, aperçu, statut, suppression, limitation des tentatives), limitation des demandes, administration fermée sans mot de passe |
-| `node tests/e2e.mjs` | **46/46** : les deux formulaires avec et sans fichier, glisser-déposer, retrait et focus, refus navigateur (format, taille, doublon), refus serveur avec saisie conservée, coupure réseau puis nouvel essai sans doublon, double clic, logo sur l'aperçu, mode préparation sans API (récapitulatif, `mailto`, fichiers à joindre), envoi sans JavaScript. Aucune erreur JavaScript |
+| `node --test tests/api.test.mjs` | **35/35** : limites effectives, demande sans fichier, fichiers rattachés et renommés, validation serveur, faux PNG / double extension / `.php` / SVG / exécutable / PDF tronqué / image démesurée refusés, nom malveillant ou très long, nombre / taille / taille totale (413), idempotence (renvoi, envois simultanés, envoi sans JavaScript, clé réutilisée avec un contenu modifié), origine étrangère, champ piège, paramètres en tableau, réponse HTML sans JS, notification (pièces jointes signalées, aucun fichier joint, liens signés, en-tête `Host` falsifié sans effet, aucun lien sans `site_url`), liens falsifiés / expirés / d'une autre demande, accès direct interdit, stockage plein (réserve disque et plafond : fichiers refusés, demande sans fichier acceptée), « autre emballage », administration (accès, cookie, CSRF, mots de passe, aperçu, statut, suppression, tentatives limitées y compris en parallèle), plafond de demandes y compris en parallèle (8 processus PHP), administration fermée sans mot de passe |
+| `node tests/e2e.mjs` | **51/51** : les deux formulaires avec et sans fichier, glisser-déposer, retrait et focus, refus navigateur (format, taille, doublon), refus serveur avec saisie conservée, coupure réseau puis nouvel essai sans doublon, coupure puis saisie modifiée (la version confirmée est celle envoyée), double clic, « autre emballage », logo sur l'aperçu, touche Entrée dans l'atelier, avertissement du lien de devis, mode préparation sans API (récapitulatif, `mailto`, fichiers à joindre), envoi sans JavaScript. Aucune erreur JavaScript |
 | Régression (54 tests fonctionnels du thème) | **54/54** en mode préparation |
-| Lighthouse 12 mobile (gzip) | accueil 98 · contact 99 · personnalisation 99 · gamme 99 · FAQ 99 en performance ; **100** en accessibilité, bonnes pratiques et SEO ; CLS 0–0,008 |
-| Lighthouse 12 desktop (gzip) | accueil et contact : **100 / 100 / 100 / 100** |
+| Débordement horizontal | **0** sur 11 pages × 9 largeurs (320 à 1440 px) |
+| Lighthouse 12 mobile (gzip) | accueil 98 · contact 100 · personnalisation 99 · gamme 100 · FAQ 99 en performance ; **100** en accessibilité, bonnes pratiques et SEO ; CLS 0–0,008 |
+| Lighthouse 12 desktop (gzip) | accueil, contact et gamme : **100 / 100 / 100 / 100** |
+| Revue indépendante | Revue en 4 axes (sécurité, front-end et accessibilité, conformité au cahier des charges, robustesse PHP) avec vérification contradictoire : 27 constats confirmés, tous corrigés et couverts par les tests ci-dessus |
 | Validation HTML | `html-validate` : 0 erreur sur les 11 pages, la page de confirmation sans JS et les 3 vues de l'administration |
 
 ### Thème (19/10/2026)
