@@ -146,12 +146,21 @@
     return t;
   };
 
-  /** Bouton d'envoi occupé (configuration en cours de chargement ou envoi). */
+  /**
+   * Bouton d'envoi occupé (configuration en cours de chargement ou envoi) : aria-disabled plutôt que
+   * disabled, pour que le bouton garde le focus clavier ; l'état est annoncé par la zone de statut du formulaire.
+   */
   var busy = function (btn, label, on, text) {
-    btn.disabled = on;
-    if (on) btn.setAttribute('aria-busy', 'true');
-    else btn.removeAttribute('aria-busy');
+    if (on) {
+      btn.setAttribute('aria-disabled', 'true');
+      btn.setAttribute('aria-busy', 'true');
+    } else {
+      btn.removeAttribute('aria-disabled');
+      btn.removeAttribute('aria-busy');
+    }
     if (label && text) label.textContent = text;
+    var status = btn.form && btn.form.querySelector('[data-form-status]');
+    if (status) status.textContent = on ? text : '';
   };
 
   /** Liste des fichiers pour un récapitulatif texte. */
@@ -216,8 +225,9 @@
     var setRadio = function (name, value) {
       var el = value && form.querySelector('input[name="' + name + '"][value="' + CSS.escape(value) + '"]');
       if (el) el.checked = true;
+      return Boolean(el);
     };
-    setRadio('format', params.get('format'));
+    var formatFromUrl = setRadio('format', params.get('format'));
     setRadio('type', params.get('type'));
     if (params.get('qte') && /^\d+$/.test(params.get('qte'))) form.quantite.value = params.get('qte');
     if (params.get('marque')) form.societe.value = params.get('marque').slice(0, 80);
@@ -255,7 +265,7 @@
     form.addEventListener('change', function (e) {
       if (e.target.name === 'type') applyType(false);
     });
-    applyType(Boolean(params.get('format')));
+    applyType(formatFromUrl);
 
     var updateQtyHint = function () {
       if (!qtyHint) return;
@@ -461,10 +471,7 @@
 
     var setSending = function (on) {
       sending = on;
-      submitBtn.disabled = on;
-      if (on) submitBtn.setAttribute('aria-busy', 'true');
-      else submitBtn.removeAttribute('aria-busy');
-      if (submitLabel) submitLabel.textContent = on ? 'Envoi en cours…' : submitBtn.getAttribute(connected ? 'data-label-connected' : 'data-label-offline');
+      busy(submitBtn, submitLabel, on, on ? 'Envoi en cours…' : submitBtn.getAttribute(connected ? 'data-label-connected' : 'data-label-offline'));
       if (attach) attach.setBusy(on);
     };
 
@@ -672,10 +679,7 @@
 
       var setSending = function (on) {
         sending = on;
-        submitBtn.disabled = on;
-        if (on) submitBtn.setAttribute('aria-busy', 'true');
-        else submitBtn.removeAttribute('aria-busy');
-        submitLabel.textContent = on ? 'Envoi en cours…' : submitBtn.getAttribute('data-label-connected');
+        busy(submitBtn, submitLabel, on, on ? 'Envoi en cours…' : submitBtn.getAttribute('data-label-connected'));
         if (attach) attach.setBusy(on);
       };
 

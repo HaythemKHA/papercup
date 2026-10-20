@@ -28,7 +28,8 @@ function pc_respond(int $status, array $payload, bool $json): never
     $ok = !empty($payload['ok']);
     $back = pc_request_origin_page();
     $back = $back !== '' ? $back : '../contact.html';
-    if (pc_param($_POST, 'formulaire') === 'devis' && !str_contains($back, '#')) {
+    // Retour au formulaire de devis (y compris quand PHP a vidé $_POST : envoi trop volumineux).
+    if (!str_contains($back, '#') && (pc_param($_POST, 'formulaire') === 'devis' || str_ends_with($back, '/contact.html'))) {
         $back .= '#devis';
     }
     $details = [];
@@ -208,6 +209,20 @@ try {
                 : 'Votre demande a bien été transmise à PAPER CUP.',
         ];
     });
+    // Renvoi identique d'une version antérieure (le visiteur est revenu au contenu d'origine) : la demande
+    // créée entre-temps est signalée comme remplacée, et la clé pointe de nouveau sur la version confirmée.
+    if (!empty($result['duplicate']) && $baseKey !== null) {
+        $latest = pc_key_latest($baseKey);
+        if ($latest !== null && $latest !== $result['id']) {
+            $other = pc_request_load($latest);
+            if ($other !== null) {
+                $other['meta']['superseded_by'] = $result['id'];
+                $other['history'][] = ['at' => date('c'), 'event' => 'remplacee:' . $result['id']];
+                pc_request_save($other);
+            }
+            pc_key_remember($baseKey, (string) $result['id']);
+        }
+    }
     if (($result['error'] ?? '') === 'busy') {
         header('Retry-After: 900');
         pc_respond(503, [

@@ -15,7 +15,8 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 
 import { site } from './src/data/site.mjs';
-import { render, absUrl } from './src/partials/layout.mjs';
+import { render, absUrl, setAssetVersion } from './src/partials/layout.mjs';
+import { createHash } from 'node:crypto';
 import { homePage } from './src/pages/home.mjs';
 import { productsPage, productPages } from './src/pages/products.mjs';
 import { customPage, aboutPage, faqPage, contactPage, notFoundPage } from './src/pages/pages.mjs';
@@ -43,10 +44,9 @@ async function bundles() {
   await writeFile(out('assets/css/theme.bundle.css'), `${banner}\n${minifyCSS(css)}\n`);
 
   const js = (await Promise.all(JS.map((f) => readFile(out(`assets/js/${f}.js`), 'utf8')))).join('\n');
-  await writeFile(
-    out('assets/js/theme.bundle.js'),
-    `/*! PAPER CUP — thème v0 · généré par build.mjs, ne pas modifier : éditer assets/js/*.js */\n${js}\nwindow.PC.start();\n`,
-  );
+  const jsBundle = `/*! PAPER CUP — thème v0 · généré par build.mjs, ne pas modifier : éditer assets/js/*.js */\n${js}\nwindow.PC.start();\n`;
+  await writeFile(out('assets/js/theme.bundle.js'), jsBundle);
+  setAssetVersion(createHash('sha256').update(minifyCSS(css)).update(jsBundle).digest('hex').slice(0, 10));
   return { css: Buffer.byteLength(minifyCSS(css)), js: Buffer.byteLength(js) };
 }
 

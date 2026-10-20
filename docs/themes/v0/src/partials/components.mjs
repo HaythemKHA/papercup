@@ -307,6 +307,7 @@ export function studio(r, { id = 'studio', current = '12oz', headingLevel = 3 } 
       <ul></ul>
     </div>
     <div class="studio__actions" data-connected-only>
+      <p class="visually-hidden" role="status" data-form-status></p>
       <button class="btn btn--accent btn--lg" type="submit" data-label-connected="Envoyer ma demande"><span data-submit-label>Envoyer ma demande</span> ${icon('arrow-right')}</button>
       <p class="studio__note">${icon('info')}<span data-form-note data-note-connected="Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace privé, réservé à son équipe." data-note-offline="">Votre demande est adressée à PAPER CUP. Vous pouvez aussi écrire à ${site.email} ou appeler le ${site.phone.display}.</span></p>
     </div>

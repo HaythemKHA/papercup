@@ -330,9 +330,22 @@ try {
   });
   await p.goto(PHP + '/contact.html');
   await p.click('#devis [type=submit]');
-  ok('Configuration en cours de chargement : bouton occupé, un seul traitement', (await p.$eval('#devis [type=submit]', (b) => b.disabled && b.getAttribute('aria-busy') === 'true')));
+  ok('Configuration en cours de chargement : bouton occupé, focus conservé, état annoncé', await p.$eval('#devis [type=submit]', (b) => b.getAttribute('aria-disabled') === 'true' && b.getAttribute('aria-busy') === 'true' && document.activeElement === b && document.querySelector('#devis [data-form-status]').textContent === 'Chargement…'));
+  await p.click('#devis [type=submit]');
   await p.waitForSelector('#devis [data-form-errors]:not([hidden])');
-  ok('Configuration chargée : validation effectuée, bouton rétabli', !(await p.$eval('#devis [type=submit]', (b) => b.disabled)));
+  ok('Configuration chargée : validation effectuée une fois, bouton rétabli', !(await p.$eval('#devis [type=submit]', (b) => b.hasAttribute('aria-disabled'))));
+  await p.goto(PHP + '/contact.html?type=autre&format=inconnu');
+  ok('?type=autre avec un format inconnu : aucun format imposé', (await p.locator('#devis input[name="format"]:checked').count()) === 0);
+  // Cartes « Type de produit » : le libellé ne passe jamais sous l'indicateur de sélection.
+  let overlap = [];
+  for (const w of [390, 700, 1024, 1060, 1100, 1280, 1440]) {
+    await p.setViewportSize({ width: w, height: 900 });
+    await p.waitForTimeout(100);
+    const o = await p.$$eval('#devis .radio-cards--3 .radio-card__body', (cards) => cards.map((c) => c.querySelector('strong').getBoundingClientRect().right - (c.getBoundingClientRect().right - 34)).filter((d) => d > 0.5));
+    if (o.length) overlap.push(w + 'px');
+  }
+  ok('Cartes « Type de produit » : aucun chevauchement de 390 à 1440 px', overlap.length === 0, overlap.join(', '));
+  await p.setViewportSize({ width: 1280, height: 900 });
   await p.close();
 
   /* ------------------------------------------- Mode préparation (sans PHP) */

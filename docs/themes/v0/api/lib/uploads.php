@@ -223,6 +223,10 @@ function pc_svg_is_safe(string $svg): bool
     if (preg_match('/<\?xml[^>]*encoding\s*=\s*["\'](?!(utf-?8|us-ascii)["\'])/i', $svg) || preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', $svg)) {
         return false;
     }
+    // Barre oblique inverse refusée : les échappements CSS (\\69mport, \\75rl…) masqueraient @import ou url().
+    if (str_contains($svg, '\\')) {
+        return false;
+    }
     // Contrôles appliqués au texte brut ET au texte dont les références de caractères (&#106;…) sont décodées.
     $decoded = html_entity_decode($svg, ENT_QUOTES | ENT_XML1, 'UTF-8');
     $forbidden = [

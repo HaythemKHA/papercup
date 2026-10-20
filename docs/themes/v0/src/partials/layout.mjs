@@ -6,7 +6,12 @@ import { site, fullAddress } from '../data/site.mjs';
 import { products } from '../data/products.mjs';
 import { defs, icon, cup } from '../lib/svg.mjs';
 
-const ASSET_VERSION = '1.1.0';
+// Version des bundles dans les URL (?v=) : empreinte de leur contenu, fixée par build.mjs à chaque build,
+// pour qu'un navigateur ne garde jamais en cache un ancien script face à un nouveau HTML.
+let ASSET_VERSION = '1.1.0';
+export const setAssetVersion = (v) => {
+  ASSET_VERSION = v;
+};
 
 const NAV = [
   { href: 'personnalisation.html', label: 'Personnalisation' },

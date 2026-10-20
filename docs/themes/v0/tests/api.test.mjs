@@ -512,6 +512,25 @@ describe('Durcissement (vérification des correctifs)', () => {
     assert.match(decodeEml(readFileSync(join(capped.storage, 'outbox', eml), 'utf8')).body, new RegExp('Remplace\\s+: ' + a.data.id));
   });
 
+  test('envoi trop volumineux sans JavaScript : retour au formulaire de devis (#devis)', async () => {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(devis())) fd.append(k, v);
+    fd.append('fichiers[]', new Blob([Buffer.alloc(3 * 1024 * 1024 + 100)]), 'enorme.pdf');
+    const res = await fetch(capped.base + '/api/demande.php', { method: 'POST', body: fd, headers: { Referer: capped.base + '/contact.html' } });
+    assert.equal(res.status, 413);
+    assert.match(await res.text(), /href="\/contact\.html#devis"/);
+  });
+
+  test('retour à la version d’origine après deux coupures : la version intermédiaire est signalée remplacée', async () => {
+    const key = 'cle-chaine-0123456789abcdef';
+    const a = await post(capped.base, devis({ idempotence: key, message: 'Version A' }));
+    const b = await post(capped.base, devis({ idempotence: key, message: 'Version B' }));
+    const again = await post(capped.base, devis({ idempotence: key, message: 'Version A' }));
+    assert.equal(again.data.duplicate, true);
+    assert.equal(again.data.id, a.data.id);
+    assert.equal(loadRequest(capped.storage, b.data.id).meta.superseded_by, a.data.id);
+  });
+
   test('page d’erreur sans JavaScript : retour au formulaire de devis (#devis)', async () => {
     const fd = new FormData();
     for (const [k, v] of Object.entries(devis({ nom: '' }))) fd.append(k, v);
@@ -532,6 +551,8 @@ describe('Durcissement (vérification des correctifs)', () => {
       '<svg><a href="&#106;avascript:alert(1)">x</a></svg>': false,
       '<svg><a href="#x"><set attributeName="href" to="javascript:alert(1)"/></a></svg>': false,
       '<svg><svg:script>1</svg:script></svg>': false,
+      '<svg><style>@\\69mport "http://x/y.css";</style></svg>': false,
+      '<svg><style>rect{fill:\\75rl(http://x/y.png)}</style><rect/></svg>': false,
     };
     const php = `require '${THEME}/api/lib/bootstrap.php'; foreach (json_decode(stream_get_contents(STDIN), true) as $svg) { echo pc_svg_is_safe($svg) ? '1' : '0'; }`;
     const res = execFileSync('php', ['-r', php], { input: JSON.stringify(Object.keys(cases)) }).toString();

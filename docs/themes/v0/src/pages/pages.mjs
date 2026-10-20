@@ -345,7 +345,7 @@ export const contactPage = {
           <p>Merci de corriger les points suivants :</p>
           <ul></ul>
         </div>
-        <fieldset class="field">
+        <fieldset class="field field--types">
           <legend class="field__label">Type de produit <span class="req" aria-hidden="true">*</span></legend>
           <div class="radio-cards radio-cards--3">
             <label class="radio-card"><input type="radio" name="type" value="personnalise" id="f-type-perso" checked required aria-describedby="err-type"><span class="radio-card__body"><strong>Personnalisé</strong><span>À votre marque, dès ${fmt(site.minOrder)} pièces</span></span></label>
@@ -402,6 +402,7 @@ export const contactPage = {
           button: 'Ajouter des fichiers',
         })}
         <div class="form-actions">
+          <p class="visually-hidden" role="status" data-form-status></p>
           <button class="btn btn--accent btn--lg" type="submit" data-label-connected="Envoyer ma demande" data-label-offline="Générer mon récapitulatif"><span data-submit-label>Envoyer ma demande</span> ${icon('arrow-right')}</button>
           <p class="form-note">${icon('info')}<span data-form-note data-note-connected="Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace privé, réservé à son équipe." data-note-offline="Ce formulaire n’envoie aucune donnée par lui-même : il prépare un récapitulatif que vous transmettez ensuite par e-mail (${site.email}) ou par téléphone (${site.phone.display}).">Votre demande est adressée à PAPER CUP. Vous pouvez aussi écrire à ${site.email} ou appeler le ${site.phone.display}.</span></p>
         </div>

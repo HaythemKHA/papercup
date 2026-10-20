@@ -295,13 +295,14 @@ if ($requested !== '') {
     foreach (array_reverse($r['history'] ?? []) as $h) {
         $event = (string) $h['event'];
         $history .= '<li><time datetime="' . pc_h($h['at']) . '">' . pc_h(date('d/m/Y H:i', strtotime($h['at']) ?: 0)) . '</time> '
-            . pc_h($event === 'creation' ? 'Demande reçue' : (str_starts_with($event, 'statut:') ? 'Statut : ' . $statusLabel(substr($event, 7)) : $event)) . '</li>';
+            . pc_h($event === 'creation' ? 'Demande reçue' : (str_starts_with($event, 'statut:') ? 'Statut : ' . $statusLabel(substr($event, 7)) : (str_starts_with($event, 'remplacee:') ? 'Remplacée par ' . substr($event, 10) : $event))) . '</li>';
     }
     $body = '<p class="admin-back"><a href="./">← Toutes les demandes</a></p>' . $flash . $warning
         . '<section class="admin-card"><header class="admin-head"><div><p class="eyebrow">' . pc_h(PC_FORM_LABELS[$r['fields']['formulaire']] ?? '') . '</p>'
         . '<h1>' . pc_h($r['id']) . '</h1><p class="admin-muted">Reçue le ' . pc_h(date('d/m/Y à H:i', strtotime($r['created_at']) ?: 0))
         . (($r['meta']['page'] ?? '') !== '' ? ' depuis ' . pc_h($r['meta']['page']) : '') . ' · ' . pc_h($notifLabels[$r['notification']['status'] ?? ''] ?? '') . '</p>'
         . (!empty($r['meta']['replaces']) ? '<p class="admin-warn">Version modifiée par le client après une coupure de connexion : remplace <a href="./?demande=' . rawurlencode((string) $r['meta']['replaces']) . '">' . pc_h((string) $r['meta']['replaces']) . '</a>.</p>' : '')
+        . (!empty($r['meta']['superseded_by']) ? '<p class="admin-warn">Remplacée par <a href="./?demande=' . rawurlencode((string) $r['meta']['superseded_by']) . '">' . pc_h((string) $r['meta']['superseded_by']) . '</a> (version confirmée par le client).</p>' : '')
         . '</div>'
         . '<form class="admin-status" method="post" action="./"><input type="hidden" name="csrf" value="' . pc_h($csrf) . '"><input type="hidden" name="action" value="status">'
         . '<input type="hidden" name="demande" value="' . pc_h($r['id']) . '"><label class="field__label" for="a-status">Statut</label>'
@@ -344,7 +345,8 @@ foreach (array_slice($list, 0, 200) as $r) {
         . '<td>' . ($n > 0 ? '<span class="admin-pill admin-pill--files">' . $n . ' fichier' . ($n > 1 ? 's' : '') . '</span>' : '<span class="admin-muted">—</span>') . '</td>'
         . '<td><span class="admin-pill admin-pill--' . pc_h($r['status']) . '">' . pc_h($statusLabel($r['status'])) . '</span>'
         . (($r['notification']['status'] ?? '') === 'echec' ? '<br><span class="admin-warn">E-mail non envoyé</span>' : '')
-        . (!empty($r['meta']['replaces']) ? '<br><span class="admin-warn">Remplace ' . pc_h((string) $r['meta']['replaces']) . '</span>' : '') . '</td></tr>';
+        . (!empty($r['meta']['replaces']) ? '<br><span class="admin-warn">Remplace ' . pc_h((string) $r['meta']['replaces']) . '</span>' : '')
+        . (!empty($r['meta']['superseded_by']) ? '<br><span class="admin-warn">Remplacée par ' . pc_h((string) $r['meta']['superseded_by']) . '</span>' : '') . '</td></tr>';
 }
 $table = $tbody === ''
     ? '<p class="admin-muted">Aucune demande pour le moment.</p>'

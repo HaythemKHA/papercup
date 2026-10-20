@@ -111,9 +111,9 @@ export const faq = (r = '') => [
 /** Texte brut pour le JSON-LD FAQPage. */
 export const plain = (html) =>
   html
+    .replace(/<span class="visually-hidden">[^<]*<\/span>/g, '')
     // Paragraphe final réduit à un lien (« Voir la gamme… ») : sans intérêt dans une réponse en texte brut.
     .replace(/<p><a [^>]*>[^<]*<\/a><\/p>\s*$/, '')
-    .replace(/<span class="visually-hidden">[^<]*<\/span>/g, '')
     .replace(/<\/p>|<br\s*\/?>|<\/li>/g, ' ')
     .replace(/&nbsp;/g, '\u00a0')
     .replace(/&amp;/g, '&')
