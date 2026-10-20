@@ -1,0 +1,6 @@
+# Tests du thème : à ne pas déployer. Aucun accès HTTP.
+Require all denied
+<IfModule !mod_authz_core.c>
+  Order allow,deny
+  Deny from all
+</IfModule>

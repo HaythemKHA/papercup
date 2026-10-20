@@ -174,6 +174,62 @@ Poids : environ 17 Mo d'originaux, contre **3,1 Mo** de variantes optimisées. L
    | `contact?lang=fr` | `/contact.html` |
 
 3. **Produire les versions EN et AR** dans `/en/` et `/ar/` (RTL), avec hreflang. La v0 est en français.
-4. **Brancher le formulaire sur un point de terminaison** via `data-endpoint` (voir README). Le mode par défaut ouvre un e-mail pré-rempli.
+4. **Brancher les formulaires sur l'API PHP** fournie (`api/`, voir README § 6) : envoi direct, pièces jointes, notification interne et administration. Sans PHP, le mode préparation ouvre un e-mail pré-rempli.
 5. **Faire valider par PAPER CUP** les points du § 7 avant mise en ligne, notamment les cotes, les unités et le logo vectoriel.
 6. **Données structurées** : `Organization`, `WebSite`, `BreadcrumbList`, `ItemList` et `FAQPage` sont en place. Le schéma `Product` a été écarté : sans prix (`offers`), il serait invalide pour les résultats enrichis de Google.
+
+---
+
+# Mission « Amélioration du site » (20 octobre 2026)
+
+## 9. Analyse de l'existant (formulaires)
+
+| Élément | Constat avant intervention |
+|---|---|
+| Pile | Site statique généré par `build.mjs` (Node, sans dépendance) ; HTML/CSS/JS natif ; aucun serveur, aucune base de données, aucun stockage, aucun espace d'administration dans le dépôt |
+| « Demande de devis » (`contact.html#devis`) | Validation dans le navigateur (type, format, quantité, téléphone ; nom et téléphone requis seulement en mode connecté), récapitulatif + `mailto:`. Un mode « connecté » existait (`data-endpoint`, `POST` JSON) mais **aucun point de terminaison** n'était fourni |
+| « Essayez votre marque » (atelier) | **Aperçu uniquement**, pas un formulaire : nom (18 caractères), teinte, format, puis lien « Préparer ma demande » vers le devis pré-rempli. Aucune donnée envoyée |
+| Routes serveur, notifications | Aucune. L'ancien site utilisait `sendmail/mail.php` (PHP + `mail()`), non réutilisable tel quel |
+| Pièces jointes | Aucune possibilité de joindre un logo ou une maquette |
+
+**Choix d'architecture.** L'hébergement d'origine exécute PHP (ancien formulaire `mail.php`) : l'API est écrite en **PHP 8.1+ sans dépendance** (fonctions natives : `$_FILES`, `finfo`, `getimagesize`, `mail()`, sessions, `password_hash`, `hash_hmac`, `flock`). Les limites d'envoi sont lues dans la configuration PHP effective, jamais supposées. Sans PHP, le comportement d'origine est conservé.
+
+## 10. Page Facebook (relevé du 20/10/2026)
+
+**Accès.** La page <https://www.facebook.com/papercuptunisie/> exige une connexion pour un navigateur ordinaire. Le HTML public servi aux robots d'indexation a pu être lu pour l'en-tête, l'onglet « Coordonnées », la transparence et les textes de **20 publications (18/08 → 20/10/2026) et 10 vidéos courtes (depuis le 09/07/2026)**, toutes signées « PAPER CUP » (même ID de page que le lien du site). Une vérification croisée indépendante a relu les fichiers bruts et récupéré à nouveau les onglets et 7 publications.
+
+**Non accessible** : toutes les **images et vidéos** (CDN de Meta bloqués) — aucune description visuelle n'est donc reprise ; les publications antérieures au 18/08/2026 ; l'avis unique de la page ; la bibliothèque publicitaire.
+
+### Faits confirmés et repris sur le site
+
+| Fait (source : texte publié par PAPER CUP) | Utilisation |
+|---|---|
+| WhatsApp **+216 24 749 110** (champ officiel « WhatsApp » + boutons des publications) | Carte Contact « Autres lignes », FAQ « devis » |
+| Gobelets **plastique** personnalisés **10, 12, 14 et 16 oz** (14/09/2026) | `produits.html#autres-emballages`, FAQ |
+| Gobelets **transparents** personnalisables pour boissons froides (23/08/2026) | idem |
+| Gobelets à **glace** en carton : 1 boule (55 cc), 2 boules (85 cc) (27/07/2026) | idem |
+| **Pochettes** personnalisées, tailles 0 à 4, notamment croissants et sandwichs (29/08 et 04/09/2026) | idem |
+| **Papiers plateaux** personnalisés (21/09/2026) | idem |
+| Secteurs visés : cafés et coffee shops, lounges, restaurants, fast-foods et snacks, hôtels, glaceries, commerces, entreprises | Bandeau « Pour » de l'accueil |
+
+Déjà présents sur le site et confirmés par Facebook : formats 4 / 6,5 / 9 / 12 oz, adresse (Gabès 6032), mobile 26 880 202, positionnement « leader » (déjà sur le site source, repris comme positionnement déclaré).
+
+### Confirmés mais **non publiés** (à valider par PAPER CUP)
+
+| Élément | Raison |
+|---|---|
+| Clients remerciés publiquement : TIJEN, AGIL, « Sun Side COOFEE » | Accord des clients, orthographe exacte et logos à obtenir |
+| Numéro +216 25 672 636 (« Téléphone / WhatsApp » dans 14 publications) | Absent des coordonnées officielles de la page et du site : à confirmer |
+| « Gamme complète : pots de glace, gobelets, sacs viennoiseries et boîtes à pizza » (une seule mention, 18/07/2026) | Trop peu précis (fabrication ou négoce ?) |
+| « N°1 », « expertise 100 % tunisienne », « de la fabrication à l'impression » | Auto-déclarations promotionnelles non étayées |
+| Horaires « Toujours ouvert », zone de service « Tunis » | Réglages vraisemblablement par défaut, contradictoires avec l'implantation à Gabès |
+| Équivalences en ml des gobelets plastique (300 à 500 ml) | Lues seulement dans le texte automatique d'une image non consultée |
+| Audience (≈ 10 100 abonnés), date de création de la page (16/01/2020) | Chiffres variables, sans intérêt pour le client |
+
+**Aucune** publication ne donne de prix, délai, minimum, technique ou nombre de couleurs d'impression, matière, certification, double paroi ou kraft : rien de tel n'a été ajouté. Les commentaires demandent surtout des **prix et des dimensions**, sans réponse publique visible : la FAQ rappelle que les tarifs sont établis sur devis et que le formulaire permet de joindre un visuel.
+
+### Propositions éditoriales (non réalisées)
+
+- Fiches détaillées pour les autres emballages (dimensions, matières, quantités minimales) une fois les informations fournies par PAPER CUP, avec leurs propres photos.
+- Bandeau de références enrichi (TIJEN, AGIL, Sun Side) après accord des clients.
+- Réponse type aux questions de prix sur Facebook renvoyant vers le formulaire de devis du site.

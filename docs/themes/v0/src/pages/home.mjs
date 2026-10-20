@@ -1,5 +1,6 @@
 /** Accueil — page de référence de la direction artistique. */
 import { site } from '../data/site.mjs';
+import { facebook } from '../data/facebook.mjs';
 import { products, productsJSON } from '../data/products.mjs';
 import { icon, fmt } from '../lib/svg.mjs';
 import { picture, preloadImage } from '../lib/media.mjs';
@@ -96,6 +97,11 @@ function ranges(r) {
           <a class="link-arrow link-arrow--light" href="${r}personnalisation.html">Découvrir la personnalisation ${icon('arrow-right')}</a>
         </div>
       </article>
+    </div>
+    <div class="sectors" data-reveal>
+      <p class="sectors__label" id="sectors-label">Pour</p>
+      <ul class="sectors__list" role="list" aria-labelledby="sectors-label">${facebook.sectors.map((x) => `<li>${x}</li>`).join('')}</ul>
+      <a class="link-arrow" href="${r}produits.html#autres-emballages">Autres emballages personnalisés ${icon('arrow-right')}</a>
     </div>
   </div>
 </section>`;

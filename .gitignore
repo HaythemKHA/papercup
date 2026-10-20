@@ -1,0 +1,4 @@
+# Données privées des formulaires (demandes et pièces jointes) : jamais dans Git.
+papercup-data/
+# Configuration serveur locale (secrets, empreinte du mot de passe d'administration).
+docs/themes/v0/api/config.local.php

@@ -1,10 +1,11 @@
 /** Pages éditoriales : personnalisation, entreprise, FAQ, contact, 404. */
 import { site, fullAddress } from '../data/site.mjs';
+import { facebook } from '../data/facebook.mjs';
 import { products, byId, productsJSON } from '../data/products.mjs';
 import { faq, faqGroups, plain } from '../data/faq.mjs';
 import { cup, icon, fmt } from '../lib/svg.mjs';
 import { picture } from '../lib/media.mjs';
-import { pageHero, studio, faqList, faqByTag, ctaBand, lineup, gallery, clientsBand } from '../partials/components.mjs';
+import { pageHero, studio, faqList, faqByTag, ctaBand, lineup, gallery, clientsBand, attachmentsField, honeypot } from '../partials/components.mjs';
 
 const home = { label: 'Accueil', href: 'index.html' };
 
@@ -30,7 +31,7 @@ export const customPage = {
         <p class="eyebrow eyebrow--light">${icon('palette', 'eyebrow__icon')}Atelier d’aperçu</p>
         <h2 id="studio-title">Visualisez votre gobelet.</h2>
       </div>
-      <p>Saisissez le nom de votre marque, choisissez une teinte et un format : l’aperçu se met à jour instantanément, puis transmettez votre choix dans votre demande de devis.</p>
+      <p>Saisissez le nom de votre marque, choisissez une teinte et un format, ajoutez votre logo si vous le souhaitez : l’aperçu se met à jour instantanément. Transmettez ensuite votre projet à PAPER CUP.</p>
     </header>
     ${studio(r, { id: 'perso-studio', current: '9oz' })}
   </div>
@@ -290,7 +291,7 @@ export const contactPage = {
     crumbs: contactPage.breadcrumb,
     eyebrow: 'Contact &amp; devis',
     title: 'Parlons de votre projet de gobelets',
-    lead: `Appelez le ${site.phone.display}, écrivez à ${site.email}, ou décrivez votre besoin ci-dessous : nous préparons un récapitulatif clair à envoyer par e-mail ou à dicter par téléphone.`,
+    lead: `Appelez le ${site.phone.display}, écrivez à ${site.email}, ou décrivez votre besoin ci-dessous, avec votre logo ou votre maquette si vous en avez une.`,
   })}
 <section class="section" style="padding-top:0" aria-label="Coordonnées et demande de devis">
   <div class="container contact__grid">
@@ -312,6 +313,7 @@ export const contactPage = {
       <div class="contact-card contact-card--lines" data-reveal style="--i:2">
         <span class="contact-card__label">Autres lignes</span>
         <a class="contact-card__line" href="${site.mobile.href}">${icon('phone')}<span>Mobile</span><strong>${site.mobile.display}</strong></a>
+        <a class="contact-card__line" href="${facebook.whatsapp.href}" rel="noopener" target="_blank">${icon('chat')}<span>WhatsApp</span><strong>${facebook.whatsapp.display}</strong><span class="visually-hidden"> (nouvel onglet)</span></a>
         <p class="contact-card__line">${icon('printer')}<span>Fax</span><strong>${site.fax.display}</strong></p>
       </div>
       <a class="contact-card" href="${site.mapsUrl}" rel="noopener" target="_blank" data-reveal style="--i:3">
@@ -331,9 +333,12 @@ export const contactPage = {
     </div>
 
     <div>
-      <form class="quote-form" id="devis" data-quote-form data-endpoint="" novalidate aria-labelledby="devis-title">
+      <form class="quote-form" id="devis" data-quote-form data-endpoint="${r}${site.api}" data-phone="${site.phone.display}" action="${r}${site.api}" method="post" enctype="multipart/form-data" novalidate aria-labelledby="devis-title">
+        <input type="hidden" name="formulaire" value="devis">
+        <input type="hidden" name="idempotence" value="" data-idempotence>
+        ${honeypot('devis')}
         <div class="quote-form__head">
-          <h2 id="devis-title">Préparer ma demande de devis</h2>
+          <h2 id="devis-title">Demande de devis</h2>
           <p>Les champs marqués <span class="req" aria-hidden="true">*</span><span class="visually-hidden">d’un astérisque</span> sont requis.</p>
         </div>
         <div class="form-errors" data-form-errors role="alert" tabindex="-1" hidden>
@@ -365,12 +370,12 @@ export const contactPage = {
             <input class="input" id="f-company" name="societe" type="text" autocomplete="organization" maxlength="80">
           </div>
           <div class="field">
-            <label class="field__label" for="f-name">Votre nom</label>
+            <label class="field__label" for="f-name">Votre nom <span class="req" aria-hidden="true" data-req-mark hidden>*</span></label>
             <input class="input" id="f-name" name="nom" type="text" autocomplete="name" maxlength="80" aria-describedby="err-name" data-required-when-connected>
             ${errorSlot('err-name')}
           </div>
           <div class="field">
-            <label class="field__label" for="f-phone">Téléphone</label>
+            <label class="field__label" for="f-phone">Téléphone <span class="req" aria-hidden="true" data-req-mark hidden>*</span></label>
             <input class="input" id="f-phone" name="telephone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" aria-describedby="err-phone" data-required-when-connected>
             ${errorSlot('err-phone')}
           </div>
@@ -378,14 +383,26 @@ export const contactPage = {
             <label class="field__label" for="f-city">Ville</label>
             <input class="input" id="f-city" name="ville" type="text" autocomplete="address-level2" maxlength="60">
           </div>
+          <div class="field field--span">
+            <label class="field__label" for="f-email">E-mail <span class="field__optional">(facultatif)</span></label>
+            <input class="input" id="f-email" name="email" type="email" autocomplete="email" maxlength="120" aria-describedby="f-email-hint err-email">
+            <p class="field__hint" id="f-email-hint">Pour recevoir une réponse écrite.</p>
+            ${errorSlot('err-email')}
+          </div>
         </div>
         <div class="field">
           <label class="field__label" for="f-msg">Votre projet</label>
           <textarea class="input" id="f-msg" name="message" rows="4" maxlength="1500" placeholder="Couleurs, visuel, échéance souhaitée…"></textarea>
         </div>
+        ${attachmentsField({
+          id: 'devis-files',
+          title: 'Vous avez un logo ou un exemple à nous montrer&nbsp;?',
+          text: 'Joignez votre logo, votre design ou un document de référence pour nous permettre de mieux comprendre votre besoin et de préparer une proposition adaptée.',
+          button: 'Ajouter des fichiers',
+        })}
         <div class="form-actions">
-          <button class="btn btn--accent btn--lg" type="submit">Générer mon récapitulatif ${icon('arrow-right')}</button>
-          <p class="form-note">${icon('info')}<span>Ce formulaire n’envoie aucune donnée par lui-même : il prépare un récapitulatif que vous transmettez ensuite par e-mail (${site.email}) ou par téléphone (${site.phone.display}).</span></p>
+          <button class="btn btn--accent btn--lg" type="submit" data-label-connected="Envoyer ma demande" data-label-offline="Générer mon récapitulatif"><span data-submit-label>Envoyer ma demande</span> ${icon('arrow-right')}</button>
+          <p class="form-note">${icon('info')}<span data-form-note data-note-connected="Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace privé, réservé à son équipe." data-note-offline="Ce formulaire n’envoie aucune donnée par lui-même : il prépare un récapitulatif que vous transmettez ensuite par e-mail (${site.email}) ou par téléphone (${site.phone.display}).">Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace privé, réservé à son équipe.</span></p>
         </div>
       </form>
 

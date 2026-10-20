@@ -43,7 +43,10 @@ export const site = {
   mapsUrl:
     'https://www.google.com/maps/search/?api=1&query=' +
     encodeURIComponent('PAPER CUP, Route de Medenine km 5, Teboulbou, Gabès, Tunisie'),
-  lastmod: '2026-10-19',
+  lastmod: '2026-10-20',
+  // Point d'entrée de l'API PHP des formulaires (relatif à la racine du thème, voir api/demande.php).
+  // Sans PHP sur l'hébergement, les formulaires restent en mode « préparation » (récapitulatif).
+  api: 'api/demande.php',
 };
 
 export const fullAddress = `${site.address.street}, ${site.address.locality}, ${site.address.postalCode} ${site.address.city}, ${site.address.country}`;

@@ -1,0 +1,316 @@
+/* PAPER CUP — espace d'administration des demandes (complète theme.bundle.css). */
+.admin {
+  background: var(--color-background);
+}
+.admin-bar {
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.admin-bar__inner,
+.admin-main {
+  width: min(100% - 2rem, 1100px);
+  margin-inline: auto;
+}
+.admin-bar__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 68px;
+}
+.admin-bar__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.8rem;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+}
+.admin-bar__brand span {
+  padding-left: 0.8rem;
+  border-left: 1px solid var(--color-border-strong);
+}
+.admin-main {
+  display: grid;
+  gap: 1.25rem;
+  padding-block: 2rem 4rem;
+}
+.admin-card {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  padding: clamp(1.1rem, 0.8rem + 1.5vw, 2rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
+}
+.admin-card--narrow {
+  max-width: 34rem;
+  margin: 2rem auto 0;
+}
+.admin-card--danger {
+  border-color: #e7b2a8;
+}
+.admin-card h1 {
+  font-size: var(--fs-h3);
+}
+.admin-card h2 {
+  font-size: var(--fs-h4);
+}
+.admin-card code {
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}
+.admin-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.admin-head .eyebrow {
+  margin-bottom: 0.3rem;
+}
+.admin-muted {
+  font-size: 0.875rem;
+  color: var(--color-muted);
+}
+.admin-warn {
+  font-size: 0.8rem;
+  font-weight: var(--fw-semibold);
+  color: var(--color-danger);
+}
+.admin-back a {
+  font-weight: var(--fw-semibold);
+}
+.admin-flash {
+  padding: 0.85rem 1.1rem;
+  border: 1px solid #b9d8c3;
+  border-radius: var(--radius-md);
+  background: #e3f0e7;
+  color: #1f5233;
+  font-weight: var(--fw-semibold);
+}
+.admin-flash--danger {
+  border-color: #e7b2a8;
+  background: #fbebe7;
+  color: #7a1b12;
+}
+.admin-login {
+  display: grid;
+  gap: 1rem;
+}
+.admin-login .btn {
+  justify-self: start;
+}
+.admin-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+.admin-status .input {
+  width: auto;
+  min-height: 42px;
+  padding-block: 0.4rem;
+}
+.admin-fields {
+  display: grid;
+  gap: 0;
+  border-top: 1px solid var(--color-border);
+}
+.admin-fields > div {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.admin-fields dt {
+  font-size: 0.75rem;
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.admin-fields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.admin-files {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+.admin-file {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.6rem 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.admin-file .btn {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+.admin-file__thumb {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+}
+.admin-file__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.admin-file__thumb--doc {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: var(--fw-semibold);
+  color: var(--color-accent-ink);
+}
+.admin-file__meta {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.admin-file__meta strong {
+  overflow-wrap: anywhere;
+}
+.admin-file__meta span {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+.admin-file__hash {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem !important;
+}
+.admin-history {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
+}
+.admin-history time {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted);
+}
+.admin-delete {
+  display: grid;
+  gap: 0.8rem;
+  justify-items: start;
+}
+.admin-check {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  font-size: 0.9rem;
+}
+.admin-check input {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.15rem;
+  accent-color: var(--color-accent);
+}
+.admin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.admin-tabs a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 40px;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--color-text);
+  font-size: 0.875rem;
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+}
+.admin-tabs a[aria-current='page'] {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-dark);
+}
+.admin-tabs span {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+.admin-table-wrap {
+  overflow-x: auto;
+}
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.admin-table th,
+.admin-table td {
+  padding: 0.7rem 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+.admin-table thead th {
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.admin-table tbody th a {
+  font-family: var(--font-display);
+  white-space: nowrap;
+}
+.admin-table time {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.admin-pill {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+  font-size: 0.78rem;
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}
+.admin-pill--nouvelle {
+  background: #fbebe7;
+  color: #7a1b12;
+}
+.admin-pill--en-cours {
+  background: #f6ead3;
+  color: #6b440c;
+}
+.admin-pill--traitee {
+  background: #e3f0e7;
+  color: #1f5233;
+}
+.admin-pill--files {
+  background: var(--color-primary);
+  color: var(--color-on-dark);
+}
+@media (min-width: 640px) {
+  .admin-file {
+    grid-template-columns: 72px minmax(0, 1fr) auto;
+  }
+  .admin-file .btn {
+    grid-column: auto;
+  }
+  .admin-fields > div {
+    grid-template-columns: 12rem minmax(0, 1fr);
+    gap: 1rem;
+  }
+}

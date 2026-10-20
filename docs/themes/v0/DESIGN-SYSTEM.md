@@ -110,12 +110,15 @@ Les tokens sont définis dans `assets/css/style.css` (`:root`). Contrastes WCAG 
 | FAQ | `faqList` | `<details>` natif (fonctionne sans JS), hauteur animée |
 | Fiche produit | `src/pages/products.mjs` | Onglets ARIA Photo / Plan coté / Carton ; tableau de caractéristiques |
 | Comparatif | `compareTable` | Tableau défilant, 1ʳᵉ colonne collante |
-| Formulaire de devis | `src/pages/pages.mjs`, `forms.js` | Validation accessible, résumé d'erreurs, récapitulatif, `mailto:` pré-rempli |
+| Formulaire de devis | `src/pages/pages.mjs`, `forms.js` | Validation accessible, résumé d'erreurs ; envoi direct (mode connecté) ou récapitulatif et `mailto:` pré-rempli (mode préparation) |
+| Pièces jointes | `components.mjs › attachmentsField`, `attachments.js` | `fieldset` + `legend`, mention « Facultatif », zone de dépôt en pointillés (contour plein vermillon au survol de fichiers), bouton visible au clavier, champ natif masqué mais utilisé sans JS. Liste : miniature (images) ou pictogramme, nom tronqué, format et taille, barre de progression, bouton « Retirer » de 44 px. Erreurs dans une zone `role="alert"`, annonces dans une zone `role="status"`. Variante claire (devis) et sombre (`.attach--dark`, atelier) |
+| Atelier « Essayez votre marque » | `components.mjs › studio`, `components.js`, `forms.js › brand-form` | Formulaire : aperçu (nom, teinte, format, **logo joint affiché sur le gobelet**), pièces jointes, coordonnées et envoi en mode connecté ; confirmation avec référence |
+| Autres emballages, secteurs | `products.mjs`, `home.mjs`, `src/data/facebook.mjs` | Cartes `.feature` avec pictogramme et source (« Présenté sur la page Facebook de PAPER CUP · date ») ; puces `.sectors` |
 | Frise « Repères & salons », fiche entreprise, cartes contact, bandeau CTA, pied de page | `pages.mjs`, `components.mjs` | — |
 
 ## 7. Iconographie
 
-- Sprite SVG maison de 27 pictogrammes : grille 24, trait 1,7, extrémités arrondies, `currentColor`.
+- Sprite SVG maison de 35 pictogrammes : grille 24, trait 1,7, extrémités arrondies, `currentColor` (dont trombone, envoi, fichier, corbeille, glace, pochette, plateau, discussion).
 - Le sprite est injecté une fois par page (`src/lib/svg.mjs › defs()`).
 - La mire d'impression ⌖ sert de puce de marque.
 
@@ -145,6 +148,7 @@ Les tokens sont définis dans `assets/css/style.css` (`:root`). Contrastes WCAG 
 - HTML sémantique, un seul `h1` par page, landmarks nommés, fil d'Ariane.
 - Lien d'évitement, focus visible partout.
 - Formulaires : labels explicites, `aria-describedby`, `aria-invalid`, résumé d'erreurs focalisé et liens vers les champs.
+- Pièces jointes : opérables au clavier (bouton), retrait avec nom du fichier dans l'intitulé, focus déplacé sur l'élément suivant après un retrait, annonces polies des ajouts et retraits, saisie et fichiers conservés après une erreur.
 - Composants ARIA : onglets (flèches, Début, Fin), `aria-expanded`, `aria-pressed`, `aria-live` pour l'estimateur.
 - Menu mobile avec piège de focus et `inert` ; `<dialog>` modal pour la visionneuse.
 - Textes alternatifs descriptifs (marque et décor visibles sur chaque photo) ; illustrations décoratives en `aria-hidden`.

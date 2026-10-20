@@ -26,7 +26,8 @@
       var label = PC.$('[data-studio-label]', root);
       var cups = PC.$$('[data-studio-cup]', root);
       var texts = PC.$$('.js-brand-text', root);
-      var state = { name: '', format: (PC.$('input[name$="-format"]:checked', root) || {}).value };
+      var logos = PC.$$('.js-brand-logo', root);
+      var state = { name: '', format: (PC.$('[data-studio-format]:checked', root) || {}).value, logo: '' };
 
       // Ajuste la longueur du texte à la largeur visible du gobelet.
       var fit = function () {
@@ -50,6 +51,33 @@
         cta.href = url + '#devis';
       };
 
+      // Logo joint (image) : affiché sur l'aperçu, au-dessus du nom s'il est saisi. Rien n'est envoyé ici.
+      var placeLogo = function () {
+        root.classList.toggle('has-logo', Boolean(state.logo));
+        root.classList.toggle('has-name', Boolean(state.name));
+        logos.forEach(function (img) {
+          var box = (img.getAttribute(state.name ? 'data-box-top' : 'data-box-full') || '').split(' ');
+          if (box.length === 4) {
+            img.setAttribute('x', box[0]);
+            img.setAttribute('y', box[1]);
+            img.setAttribute('width', box[2]);
+            img.setAttribute('height', box[3]);
+          }
+          if (state.logo) img.setAttribute('href', state.logo);
+          else img.removeAttribute('href');
+        });
+      };
+      var attach = PC.attachFor && PC.attachFor(root);
+      if (attach && logos.length) {
+        attach.onChange(function (a) {
+          var first = a.items.filter(function (it) {
+            return it.url;
+          })[0];
+          state.logo = first ? first.url : '';
+          placeLogo();
+        });
+      }
+
       if (input) {
         input.addEventListener('input', function () {
           state.name = input.value.trim().slice(0, 18);
@@ -59,6 +87,7 @@
           });
           fit();
           updateLink();
+          placeLogo();
         });
         input.addEventListener('keydown', function (e) {
           if (e.key === 'Enter') e.preventDefault();
@@ -66,9 +95,8 @@
       }
 
       root.addEventListener('change', function (e) {
-        var name = e.target.name || '';
-        if (/-ink$/.test(name)) root.style.setProperty('--print', e.target.value);
-        if (/-format$/.test(name)) {
+        if (e.target.hasAttribute('data-studio-ink')) root.style.setProperty('--print', e.target.value);
+        if (e.target.hasAttribute('data-studio-format')) {
           state.format = e.target.value;
           cups.forEach(function (c) {
             c.classList.toggle('is-active', c.getAttribute('data-studio-cup') === state.format);

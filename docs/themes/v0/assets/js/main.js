@@ -1,7 +1,7 @@
 /* ==========================================================================
    PAPER CUP — Thème v0 · main.js
    Noyau : espace de noms, utilitaires partagés, registre de modules.
-   Le build concatène : main → navigation → animations → components → forms,
+   Le build concatène : main → navigation → animations → attachments → components → forms,
    puis ajoute `PC.start()`. Aucune dépendance.
    ========================================================================== */
 (function () {

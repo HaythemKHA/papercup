@@ -26,7 +26,7 @@ const out = (p) => join(ROOT, p);
 const PAGES = [homePage, productsPage, ...productPages, customPage, aboutPage, faqPage, contactPage, notFoundPage];
 
 const CSS = ['style', 'components', 'utilities', 'responsive'];
-const JS = ['main', 'navigation', 'animations', 'components', 'forms'];
+const JS = ['main', 'navigation', 'animations', 'attachments', 'components', 'forms'];
 
 /** Minification CSS prudente : commentaires et espaces superflus uniquement. */
 const minifyCSS = (css) =>

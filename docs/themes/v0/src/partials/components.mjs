@@ -195,6 +195,43 @@ const INKS = [
   { id: 'indigo', label: 'Indigo', value: '#2C4A7A' },
 ];
 
+/* ----------------------------------------------------------- Pièces jointes */
+
+/** Formats acceptés par défaut (le serveur peut en ajouter, voir api/lib/bootstrap.php). */
+const ATTACH_EXT = ['png', 'jpg', 'jpeg', 'webp', 'pdf'];
+
+/**
+ * Champ de pièces jointes facultatives. Sans JavaScript : <input type="file" multiple> natif.
+ * Avec JavaScript (assets/js/attachments.js) : glisser-déposer, liste, retrait, limites du serveur.
+ */
+export function attachmentsField({ id, title, text, button, tone = 'light' }) {
+  const accept = ATTACH_EXT.map((e) => '.' + e).concat(['image/png', 'image/jpeg', 'image/webp', 'application/pdf']).join(',');
+  return `<fieldset class="attach${tone === 'dark' ? ' attach--dark' : ''}" data-attach data-attach-ext="${ATTACH_EXT.join(',')}" data-attach-email="${site.email}" aria-describedby="${id}-help">
+  <legend class="attach__title">${icon('paperclip', 'attach__title-icon')}<span>${title}</span><span class="attach__optional">Facultatif</span></legend>
+  <p class="attach__help" id="${id}-help">${text}</p>
+  <div class="attach__zone" data-attach-zone>
+    <span class="attach__zone-icon" aria-hidden="true">${icon('upload')}</span>
+    <p class="attach__zone-text" data-attach-enhanced hidden>Glissez-déposez vos fichiers ici, ou</p>
+    <button class="btn btn--sm ${tone === 'dark' ? 'btn--outline-light' : 'btn--outline'}" type="button" data-attach-button data-attach-enhanced hidden aria-describedby="${id}-rules">${icon('paperclip')} ${button}</button>
+    <label class="attach__native-label" for="${id}-input" data-attach-native>${button}</label>
+    <input class="attach__input" id="${id}-input" type="file" name="fichiers[]" multiple accept="${accept}" data-attach-input aria-describedby="${id}-rules">
+    <p class="attach__rules" id="${id}-rules" data-attach-rules>Formats acceptés : PNG, JPG, JPEG, WEBP et PDF.</p>
+  </div>
+  <ul class="attach__list" role="list" aria-label="Fichiers joints" data-attach-list hidden></ul>
+  <div class="attach__errors" role="alert" data-attach-errors hidden></div>
+  <p class="attach__note" data-attach-note hidden></p>
+  <p class="visually-hidden" role="status" data-attach-status></p>
+</fieldset>`;
+}
+
+/** Zone piège invisible (anti-robots) : masquée pour tous, y compris les lecteurs d'écran. */
+export const honeypot = (id) =>
+  `<div class="form-hp"><label for="${id}-hp">Laissez ce champ vide</label><input id="${id}-hp" name="site_web" type="text" tabindex="-1" autocomplete="off"></div>`;
+
+/* ------------------------------------------------------------------ Studio */
+
+const fieldError = (id, forName) => `<p class="field__error" id="${id}" data-error-for="${forName}" hidden>${icon('alert')}<span></span></p>`;
+
 export function studio(r, { id = 'studio', current = '12oz', headingLevel = 3 } = {}) {
   const cups = products
     .map(
@@ -202,7 +239,12 @@ export function studio(r, { id = 'studio', current = '12oz', headingLevel = 3 } 
         `<div class="studio__cup${p.id === current ? ' is-active' : ''}" data-studio-cup="${p.id}">${cup(p, { scale: 3.2, set: products, finish: 'brand', live: true, fixedWidth: true, uid: id })}</div>`,
     )
     .join('');
-  return `<div class="studio" data-studio data-href="${r}contact.html" style="--print:${INKS[0].value}">
+  const api = `${r}${site.api}`;
+  const req = `<span class="req" aria-hidden="true">*</span>`;
+  return `<form class="studio" id="${id}" data-studio data-brand-form data-href="${r}contact.html" data-endpoint="${api}" data-phone="${site.phone.display}" action="${api}" method="post" enctype="multipart/form-data" novalidate aria-labelledby="${id}-title" style="--print:${INKS[0].value}">
+  <input type="hidden" name="formulaire" value="essai">
+  <input type="hidden" name="idempotence" value="" data-idempotence>
+  ${honeypot(id)}
   <div class="studio__preview" aria-hidden="true">
     <div class="studio__stage crop-marks">
       <span class="studio__tag">Aperçu illustratif</span>
@@ -211,27 +253,72 @@ export function studio(r, { id = 'studio', current = '12oz', headingLevel = 3 } 
     </div>
   </div>
   <div class="studio__controls">
-    <h${headingLevel} class="studio__title">Essayez votre marque</h${headingLevel}>
+    <h${headingLevel} class="studio__title" id="${id}-title">Essayez votre marque</h${headingLevel}>
     <div class="field">
       <label class="field__label" for="${id}-name">Nom de votre marque</label>
-      <input class="input input--dark" id="${id}-name" type="text" maxlength="18" autocomplete="organization" placeholder="VOTRE MARQUE" data-studio-name>
+      <input class="input input--dark" id="${id}-name" name="marque" type="text" maxlength="18" autocomplete="organization" placeholder="VOTRE MARQUE" data-studio-name>
     </div>
     <fieldset class="field">
       <legend class="field__label">Teinte d'aperçu</legend>
       <div class="swatches">
-        ${INKS.map((k, i) => `<label class="swatch" style="--sw:${k.value}"><input type="radio" name="${id}-ink" value="${k.value}"${i === 0 ? ' checked' : ''}><span class="swatch__dot"></span><span class="visually-hidden">${k.label}</span></label>`).join('')}
+        ${INKS.map((k, i) => `<label class="swatch" style="--sw:${k.value}"><input type="radio" name="encre" value="${k.value}"${i === 0 ? ' checked' : ''} data-studio-ink><span class="swatch__dot"></span><span class="visually-hidden">${k.label}</span></label>`).join('')}
       </div>
     </fieldset>
     <fieldset class="field">
       <legend class="field__label">Format</legend>
       <div class="seg seg--dark">
-        ${products.map((p) => `<label class="seg__opt"><input type="radio" name="${id}-format" value="${p.id}"${p.id === current ? ' checked' : ''}><span>${p.label}</span></label>`).join('')}
+        ${products.map((p) => `<label class="seg__opt"><input type="radio" name="format" value="${p.id}"${p.id === current ? ' checked' : ''} data-studio-format><span>${p.label}</span></label>`).join('')}
       </div>
     </fieldset>
-    <a class="btn btn--accent btn--lg" href="${r}contact.html?type=personnalise&amp;format=${current}#devis" data-studio-cta>Préparer ma demande ${icon('arrow-right')}</a>
+    <a class="btn btn--accent btn--lg" href="${r}contact.html?type=personnalise&amp;format=${current}#devis" data-studio-cta data-label-offline="Préparer ma demande" data-label-connected="Préparer un devis"><span data-cta-label>Préparer ma demande</span> ${icon('arrow-right')}</a>
     <p class="studio__note">${icon('info')}<span>Aperçu non contractuel. Couleurs, surfaces et techniques d'impression sont à valider avec PAPER CUP.</span></p>
   </div>
-</div>`;
+  <div class="studio__send">
+    <div class="studio__send-grid">
+      ${attachmentsField({
+        id: `${id}-files`,
+        tone: 'dark',
+        title: 'Vous avez déjà une idée du design&nbsp;?',
+        text: 'Ajoutez votre logo, une maquette ou une image d’inspiration pour nous aider à mieux comprendre votre projet. Cette étape est facultative.',
+        button: 'Joindre des fichiers',
+      })}
+      <fieldset class="studio__contact" data-connected-only>
+        <legend class="studio__contact-title">Vos coordonnées</legend>
+        <div class="field">
+          <label class="field__label" for="${id}-nom">Votre nom ${req}</label>
+          <input class="input input--on-dark" id="${id}-nom" name="nom" type="text" autocomplete="name" maxlength="80" aria-describedby="${id}-err-nom" data-required-when-connected>
+          ${fieldError(`${id}-err-nom`, 'nom')}
+        </div>
+        <div class="field">
+          <label class="field__label" for="${id}-tel">Téléphone ${req}</label>
+          <input class="input input--on-dark" id="${id}-tel" name="telephone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" aria-describedby="${id}-err-tel" data-required-when-connected>
+          ${fieldError(`${id}-err-tel`, 'telephone')}
+        </div>
+        <div class="field">
+          <label class="field__label" for="${id}-mail">E-mail <span class="field__optional">(facultatif)</span></label>
+          <input class="input input--on-dark" id="${id}-mail" name="email" type="email" autocomplete="email" maxlength="120" aria-describedby="${id}-err-mail">
+          ${fieldError(`${id}-err-mail`, 'email')}
+        </div>
+      </fieldset>
+    </div>
+    <div class="form-errors" data-form-errors role="alert" tabindex="-1" hidden>
+      <p>Merci de corriger les points suivants :</p>
+      <ul></ul>
+    </div>
+    <div class="studio__actions" data-connected-only>
+      <button class="btn btn--accent btn--lg" type="submit" data-label-connected="Envoyer ma demande"><span data-submit-label>Envoyer ma demande</span> ${icon('arrow-right')}</button>
+      <p class="studio__note">${icon('info')}<span data-form-note data-note-connected="Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace privé, réservé à son équipe." data-note-offline="">Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace privé, réservé à son équipe.</span></p>
+    </div>
+    <div class="studio__result" data-brand-result tabindex="-1" role="status" hidden>
+      <span class="studio__result-badge" aria-hidden="true">${icon('check')}</span>
+      <div>
+        <p class="studio__result-title">Demande envoyée · <span data-result-ref></span></p>
+        <p data-result-text></p>
+      </div>
+      <button class="btn btn--sm btn--outline-light" type="button" data-brand-again>Faire une autre demande</button>
+    </div>
+  </div>
+</form>`;
 }
 
 /* ------------------------------------------------------------------- Steps */

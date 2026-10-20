@@ -1,0 +1,6 @@
+# Accès HTTP interdit (code PHP inclus par les points d'entrée uniquement).
+Require all denied
+<IfModule !mod_authz_core.c>
+  Order allow,deny
+  Deny from all
+</IfModule>

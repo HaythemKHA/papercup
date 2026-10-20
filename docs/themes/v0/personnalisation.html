@@ -419,6 +419,106 @@
         <path d="M12 4 21 19.5H3z" />
         <path d="M12 10v4.5M12 17.2v.2" />
       </symbol>
+      <symbol
+        id="i-paperclip"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path
+          d="m19.2 11.6-7.4 7.4a4.8 4.8 0 0 1-6.8-6.8l7.9-7.9a3.2 3.2 0 0 1 4.5 4.5l-7.9 7.9a1.6 1.6 0 0 1-2.3-2.3l7.2-7.2"
+        />
+      </symbol>
+      <symbol
+        id="i-upload"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M12 15.5V4.5M7.5 9 12 4.5 16.5 9" />
+        <path d="M4.5 14.5v3.7a2.3 2.3 0 0 0 2.3 2.3h10.4a2.3 2.3 0 0 0 2.3-2.3v-3.7" />
+      </symbol>
+      <symbol
+        id="i-file"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M13.5 3.5H7.2a1.7 1.7 0 0 0-1.7 1.7v13.6a1.7 1.7 0 0 0 1.7 1.7h9.6a1.7 1.7 0 0 0 1.7-1.7V8.5z" />
+        <path d="M13.5 3.5v5h5" />
+      </symbol>
+      <symbol
+        id="i-ice-cream"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M6.8 11.5h10.4l-1.5 8.1a1.4 1.4 0 0 1-1.4 1.1H9.7a1.4 1.4 0 0 1-1.4-1.1z" />
+        <path d="M7.8 11.5a4.2 4.2 0 0 1 8.4 0" />
+        <path d="M12 7.3V5.5" />
+      </symbol>
+      <symbol
+        id="i-bag"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M6.5 4h11l1 16.5h-13z" />
+        <path d="M9.5 4v1.8a2.5 2.5 0 0 0 5 0V4" />
+      </symbol>
+      <symbol
+        id="i-tray"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="3.5" y="5.5" width="17" height="13" rx="1.6" />
+        <path d="M7 9.5h5.5M7 12.5h10M7 15.5h7.5" />
+      </symbol>
+      <symbol
+        id="i-chat"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M5.2 19.4 6.3 16A7.6 7.6 0 1 1 9 18.6z" />
+        <path d="M9.3 9.6c.3 2.4 2 4.2 4.6 4.8l.9-1.2 1.7.8-.4 1.4c-3.6.3-7.3-3.4-7.2-7l1.4-.4.8 1.7z" />
+      </symbol>
+      <symbol
+        id="i-trash"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path
+          d="M4.5 7h15M9.5 7V4.8c0-.4.3-.8.8-.8h3.4c.5 0 .8.4.8.8V7M6.5 7l.9 12.2a1.5 1.5 0 0 0 1.5 1.3h6.2a1.5 1.5 0 0 0 1.5-1.3L17.5 7"
+        />
+        <path d="M10.2 11v5.5M13.8 11v5.5" />
+      </symbol>
     </svg>
     <a class="skip-link" href="#contenu">Aller au contenu</a>
     <header class="site-header" data-header>
@@ -1035,11 +1135,31 @@
               <h2 id="studio-title">Visualisez votre gobelet.</h2>
             </div>
             <p>
-              Saisissez le nom de votre marque, choisissez une teinte et un format : l’aperçu se met à jour
-              instantanément, puis transmettez votre choix dans votre demande de devis.
+              Saisissez le nom de votre marque, choisissez une teinte et un format, ajoutez votre logo si vous le
+              souhaitez : l’aperçu se met à jour instantanément. Transmettez ensuite votre projet à PAPER CUP.
             </p>
           </header>
-          <div class="studio" data-studio data-href="contact.html" style="--print: #cc3d14">
+          <form
+            class="studio"
+            id="perso-studio"
+            data-studio
+            data-brand-form
+            data-href="contact.html"
+            data-endpoint="api/demande.php"
+            data-phone="(+216) 75 290 088"
+            action="api/demande.php"
+            method="post"
+            enctype="multipart/form-data"
+            novalidate
+            aria-labelledby="perso-studio-title"
+            style="--print: #cc3d14"
+          >
+            <input type="hidden" name="formulaire" value="essai" />
+            <input type="hidden" name="idempotence" value="" data-idempotence />
+            <div class="form-hp">
+              <label for="perso-studio-hp">Laissez ce champ vide</label
+              ><input id="perso-studio-hp" name="site_web" type="text" tabindex="-1" autocomplete="off" />
+            </div>
             <div class="studio__preview" aria-hidden="true">
               <div class="studio__stage crop-marks">
                 <span class="studio__tag">Aperçu illustratif</span>
@@ -1072,6 +1192,16 @@
                           <path
                             d="M49.21 339.67A84.79 14.41 0 0 0 218.79 339.67L218.15 344.63A84.15 14.31 0 0 1 49.85 344.63Z"
                             class="js-print"
+                          />
+                          <image
+                            class="js-brand-logo"
+                            x="85.57"
+                            y="302.21"
+                            width="96.86"
+                            height="16.32"
+                            preserveAspectRatio="xMidYMid meet"
+                            data-box-top="85.57 302.21 96.86 16.32"
+                            data-box-full="85.57 302.21 96.86 45.45"
                           />
                           <path
                             id="tp-perso-studio-4oz"
@@ -1149,6 +1279,16 @@
                             d="M40.82 328.41A93.18 15.84 0 0 0 227.18 328.41L226.26 334.25A92.26 15.68 0 0 1 41.74 334.25Z"
                             class="js-print"
                           />
+                          <image
+                            class="js-brand-logo"
+                            x="80.14"
+                            y="283.22"
+                            width="107.72"
+                            height="20.8"
+                            preserveAspectRatio="xMidYMid meet"
+                            data-box-top="80.14 283.22 107.72 20.8"
+                            data-box-full="80.14 283.22 107.72 54.11"
+                          />
                           <path
                             id="tp-perso-studio-6-5oz"
                             d="M0.33 306.22L40.33 306.22A93.67 15.92 0 0 0 227.67 306.22L267.67 306.22"
@@ -1224,6 +1364,16 @@
                           <path
                             d="M30.14 306.9A103.86 17.66 0 0 0 237.86 306.9L236.98 314.42A102.98 17.51 0 0 1 31.02 314.42Z"
                             class="js-print"
+                          />
+                          <image
+                            class="js-brand-logo"
+                            x="74.08"
+                            y="244.98"
+                            width="119.84"
+                            height="31.23"
+                            preserveAspectRatio="xMidYMid meet"
+                            data-box-top="74.08 244.98 119.84 31.23"
+                            data-box-full="74.08 244.98 119.84 71.65"
                           />
                           <path
                             id="tp-perso-studio-9oz"
@@ -1301,6 +1451,16 @@
                             d="M34.55 283.35A99.45 16.91 0 0 0 233.45 283.35L232.29 292.71A98.29 16.71 0 0 1 35.71 292.71Z"
                             class="js-print"
                           />
+                          <image
+                            class="js-brand-logo"
+                            x="76.01"
+                            y="200.96"
+                            width="115.98"
+                            height="44.68"
+                            preserveAspectRatio="xMidYMid meet"
+                            data-box-top="76.01 200.96 115.98 44.68"
+                            data-box-full="76.01 200.96 115.98 90.29"
+                          />
                           <path
                             id="tp-perso-studio-12oz"
                             d="M-6.86 247.78L33.14 247.78A100.86 17.15 0 0 0 234.86 247.78L274.86 247.78"
@@ -1345,12 +1505,13 @@
               </div>
             </div>
             <div class="studio__controls">
-              <h3 class="studio__title">Essayez votre marque</h3>
+              <h3 class="studio__title" id="perso-studio-title">Essayez votre marque</h3>
               <div class="field">
                 <label class="field__label" for="perso-studio-name">Nom de votre marque</label>
                 <input
                   class="input input--dark"
                   id="perso-studio-name"
+                  name="marque"
                   type="text"
                   maxlength="18"
                   autocomplete="organization"
@@ -1362,21 +1523,21 @@
                 <legend class="field__label">Teinte d'aperçu</legend>
                 <div class="swatches">
                   <label class="swatch" style="--sw: #cc3d14"
-                    ><input type="radio" name="perso-studio-ink" value="#CC3D14" checked /><span
+                    ><input type="radio" name="encre" value="#CC3D14" checked data-studio-ink /><span
                       class="swatch__dot"
                     ></span
                     ><span class="visually-hidden">Vermillon</span></label
                   ><label class="swatch" style="--sw: #1c1a17"
-                    ><input type="radio" name="perso-studio-ink" value="#1C1A17" /><span class="swatch__dot"></span
+                    ><input type="radio" name="encre" value="#1C1A17" data-studio-ink /><span class="swatch__dot"></span
                     ><span class="visually-hidden">Encre</span></label
                   ><label class="swatch" style="--sw: #8a5a2b"
-                    ><input type="radio" name="perso-studio-ink" value="#8A5A2B" /><span class="swatch__dot"></span
+                    ><input type="radio" name="encre" value="#8A5A2B" data-studio-ink /><span class="swatch__dot"></span
                     ><span class="visually-hidden">Terre</span></label
                   ><label class="swatch" style="--sw: #55683a"
-                    ><input type="radio" name="perso-studio-ink" value="#55683A" /><span class="swatch__dot"></span
+                    ><input type="radio" name="encre" value="#55683A" data-studio-ink /><span class="swatch__dot"></span
                     ><span class="visually-hidden">Olive</span></label
                   ><label class="swatch" style="--sw: #2c4a7a"
-                    ><input type="radio" name="perso-studio-ink" value="#2C4A7A" /><span class="swatch__dot"></span
+                    ><input type="radio" name="encre" value="#2C4A7A" data-studio-ink /><span class="swatch__dot"></span
                     ><span class="visually-hidden">Indigo</span></label
                   >
                 </div>
@@ -1385,13 +1546,13 @@
                 <legend class="field__label">Format</legend>
                 <div class="seg seg--dark">
                   <label class="seg__opt"
-                    ><input type="radio" name="perso-studio-format" value="4oz" /><span>4 oz</span></label
+                    ><input type="radio" name="format" value="4oz" data-studio-format /><span>4 oz</span></label
                   ><label class="seg__opt"
-                    ><input type="radio" name="perso-studio-format" value="6-5oz" /><span>6,5 oz</span></label
+                    ><input type="radio" name="format" value="6-5oz" data-studio-format /><span>6,5 oz</span></label
                   ><label class="seg__opt"
-                    ><input type="radio" name="perso-studio-format" value="9oz" checked /><span>9 oz</span></label
+                    ><input type="radio" name="format" value="9oz" checked data-studio-format /><span>9 oz</span></label
                   ><label class="seg__opt"
-                    ><input type="radio" name="perso-studio-format" value="12oz" /><span>12 oz</span></label
+                    ><input type="radio" name="format" value="12oz" data-studio-format /><span>12 oz</span></label
                   >
                 </div>
               </fieldset>
@@ -1399,7 +1560,9 @@
                 class="btn btn--accent btn--lg"
                 href="contact.html?type=personnalise&amp;format=9oz#devis"
                 data-studio-cta
-                >Préparer ma demande
+                data-label-offline="Préparer ma demande"
+                data-label-connected="Préparer un devis"
+                ><span data-cta-label>Préparer ma demande</span>
                 <svg class="icon" width="24" height="24" aria-hidden="true" focusable="false">
                   <use href="#i-arrow-right" /></svg
               ></a>
@@ -1412,7 +1575,168 @@
                 >
               </p>
             </div>
-          </div>
+            <div class="studio__send">
+              <div class="studio__send-grid">
+                <fieldset
+                  class="attach attach--dark"
+                  data-attach
+                  data-attach-ext="png,jpg,jpeg,webp,pdf"
+                  data-attach-email="paper.cup@hotmail.fr"
+                  aria-describedby="perso-studio-files-help"
+                >
+                  <legend class="attach__title">
+                    <svg class="icon attach__title-icon" width="24" height="24" aria-hidden="true" focusable="false">
+                      <use href="#i-paperclip" /></svg
+                    ><span>Vous avez déjà une idée du design&nbsp;?</span
+                    ><span class="attach__optional">Facultatif</span>
+                  </legend>
+                  <p class="attach__help" id="perso-studio-files-help">
+                    Ajoutez votre logo, une maquette ou une image d’inspiration pour nous aider à mieux comprendre votre
+                    projet. Cette étape est facultative.
+                  </p>
+                  <div class="attach__zone" data-attach-zone>
+                    <span class="attach__zone-icon" aria-hidden="true"
+                      ><svg class="icon" width="24" height="24" aria-hidden="true" focusable="false">
+                        <use href="#i-upload" /></svg
+                    ></span>
+                    <p class="attach__zone-text" data-attach-enhanced hidden>Glissez-déposez vos fichiers ici, ou</p>
+                    <button
+                      class="btn btn--sm btn--outline-light"
+                      type="button"
+                      data-attach-button
+                      data-attach-enhanced
+                      hidden
+                      aria-describedby="perso-studio-files-rules"
+                    >
+                      <svg class="icon" width="24" height="24" aria-hidden="true" focusable="false">
+                        <use href="#i-paperclip" />
+                      </svg>
+                      Joindre des fichiers
+                    </button>
+                    <label class="attach__native-label" for="perso-studio-files-input" data-attach-native
+                      >Joindre des fichiers</label
+                    >
+                    <input
+                      class="attach__input"
+                      id="perso-studio-files-input"
+                      type="file"
+                      name="fichiers[]"
+                      multiple
+                      accept=".png,.jpg,.jpeg,.webp,.pdf,image/png,image/jpeg,image/webp,application/pdf"
+                      data-attach-input
+                      aria-describedby="perso-studio-files-rules"
+                    />
+                    <p class="attach__rules" id="perso-studio-files-rules" data-attach-rules>
+                      Formats acceptés : PNG, JPG, JPEG, WEBP et PDF.
+                    </p>
+                  </div>
+                  <ul class="attach__list" role="list" aria-label="Fichiers joints" data-attach-list hidden></ul>
+                  <div class="attach__errors" role="alert" data-attach-errors hidden></div>
+                  <p class="attach__note" data-attach-note hidden></p>
+                  <p class="visually-hidden" role="status" data-attach-status></p>
+                </fieldset>
+                <fieldset class="studio__contact" data-connected-only>
+                  <legend class="studio__contact-title">Vos coordonnées</legend>
+                  <div class="field">
+                    <label class="field__label" for="perso-studio-nom"
+                      >Votre nom <span class="req" aria-hidden="true">*</span></label
+                    >
+                    <input
+                      class="input input--on-dark"
+                      id="perso-studio-nom"
+                      name="nom"
+                      type="text"
+                      autocomplete="name"
+                      maxlength="80"
+                      aria-describedby="perso-studio-err-nom"
+                      data-required-when-connected
+                    />
+                    <p class="field__error" id="perso-studio-err-nom" data-error-for="nom" hidden>
+                      <svg class="icon" width="24" height="24" aria-hidden="true" focusable="false">
+                        <use href="#i-alert" /></svg
+                      ><span></span>
+                    </p>
+                  </div>
+                  <div class="field">
+                    <label class="field__label" for="perso-studio-tel"
+                      >Téléphone <span class="req" aria-hidden="true">*</span></label
+                    >
+                    <input
+                      class="input input--on-dark"
+                      id="perso-studio-tel"
+                      name="telephone"
+                      type="tel"
+                      autocomplete="tel"
+                      inputmode="tel"
+                      maxlength="20"
+                      aria-describedby="perso-studio-err-tel"
+                      data-required-when-connected
+                    />
+                    <p class="field__error" id="perso-studio-err-tel" data-error-for="telephone" hidden>
+                      <svg class="icon" width="24" height="24" aria-hidden="true" focusable="false">
+                        <use href="#i-alert" /></svg
+                      ><span></span>
+                    </p>
+                  </div>
+                  <div class="field">
+                    <label class="field__label" for="perso-studio-mail"
+                      >E-mail <span class="field__optional">(facultatif)</span></label
+                    >
+                    <input
+                      class="input input--on-dark"
+                      id="perso-studio-mail"
+                      name="email"
+                      type="email"
+                      autocomplete="email"
+                      maxlength="120"
+                      aria-describedby="perso-studio-err-mail"
+                    />
+                    <p class="field__error" id="perso-studio-err-mail" data-error-for="email" hidden>
+                      <svg class="icon" width="24" height="24" aria-hidden="true" focusable="false">
+                        <use href="#i-alert" /></svg
+                      ><span></span>
+                    </p>
+                  </div>
+                </fieldset>
+              </div>
+              <div class="form-errors" data-form-errors role="alert" tabindex="-1" hidden>
+                <p>Merci de corriger les points suivants :</p>
+                <ul></ul>
+              </div>
+              <div class="studio__actions" data-connected-only>
+                <button class="btn btn--accent btn--lg" type="submit" data-label-connected="Envoyer ma demande">
+                  <span data-submit-label>Envoyer ma demande</span>
+                  <svg class="icon" width="24" height="24" aria-hidden="true" focusable="false">
+                    <use href="#i-arrow-right" />
+                  </svg>
+                </button>
+                <p class="studio__note">
+                  <svg class="icon" width="24" height="24" aria-hidden="true" focusable="false">
+                    <use href="#i-info" /></svg
+                  ><span
+                    data-form-note
+                    data-note-connected="Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace privé, réservé à son équipe."
+                    data-note-offline=""
+                    >Votre demande et vos fichiers sont transmis directement à PAPER CUP et conservés dans un espace
+                    privé, réservé à son équipe.</span
+                  >
+                </p>
+              </div>
+              <div class="studio__result" data-brand-result tabindex="-1" role="status" hidden>
+                <span class="studio__result-badge" aria-hidden="true"
+                  ><svg class="icon" width="24" height="24" aria-hidden="true" focusable="false">
+                    <use href="#i-check" /></svg
+                ></span>
+                <div>
+                  <p class="studio__result-title">Demande envoyée · <span data-result-ref></span></p>
+                  <p data-result-text></p>
+                </div>
+                <button class="btn btn--sm btn--outline-light" type="button" data-brand-again>
+                  Faire une autre demande
+                </button>
+              </div>
+            </div>
+          </form>
         </div>
       </section>
       <section class="section" aria-labelledby="essentials-title">
@@ -1853,7 +2177,31 @@
                     <a href="mailto:paper.cup@hotmail.fr">paper.cup@hotmail.fr</a> en précisant le format, la quantité
                     et, pour un gobelet personnalisé, votre visuel. Le
                     <a href="contact.html#devis">formulaire de la page Contact</a> vous aide à rassembler ces
-                    informations.
+                    informations et permet de joindre votre logo ou votre maquette. PAPER CUP indique aussi un numéro
+                    WhatsApp sur sa page Facebook :
+                    <a href="https://wa.me/21624749110" rel="noopener" target="_blank"
+                      >(+216) 24 749 110<span class="visually-hidden"> (nouvel onglet)</span></a
+                    >.
+                  </p>
+                </div>
+              </div>
+            </details>
+            <details class="faq__item" id="faq-fichiers">
+              <summary class="faq__summary">
+                <h3 class="faq__q">Puis-je joindre mon logo ou une maquette à ma demande ?</h3>
+                <span class="faq__icon" aria-hidden="true"></span>
+              </summary>
+              <div class="faq__a">
+                <div class="faq__a-inner">
+                  <p>
+                    Oui, c’est facultatif. Les formulaires « Demande de devis » et « Essayez votre marque » acceptent
+                    vos fichiers PNG, JPG, WEBP ou PDF : logo, maquette, image d’inspiration ou document de référence.
+                    Le nombre de fichiers et la taille maximale sont indiqués dans le formulaire. Les fichiers envoyés
+                    sont conservés dans un espace privé, consultable uniquement par l’équipe PAPER CUP.
+                  </p>
+                  <p>
+                    Si l’envoi direct n’est pas disponible, le formulaire vous l’indique : joignez alors vos fichiers à
+                    votre e-mail à <a href="mailto:paper.cup@hotmail.fr">paper.cup@hotmail.fr</a>.
                   </p>
                 </div>
               </div>

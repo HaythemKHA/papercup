@@ -5,6 +5,7 @@
  */
 import { products } from './products.mjs';
 import { site } from './site.mjs';
+import { facebook } from './facebook.mjs';
 import { fmt } from '../lib/svg.mjs';
 
 export const faqGroups = [
@@ -43,6 +44,13 @@ export const faq = (r = '') => [
     a: `<p>Oui. Des couvercles avec trou sont proposés avec les gobelets de la gamme, ainsi que des agitateurs. Précisez-les dans votre demande de devis.</p><p><a href="${r}produits.html#accessoires">Voir les accessoires</a></p>`,
   },
   {
+    id: 'autres-emballages',
+    group: 'gamme',
+    tags: [],
+    q: 'Proposez-vous d’autres emballages que les gobelets en carton ?',
+    a: `<p>Sur sa page Facebook, PAPER CUP présente aussi des gobelets plastique personnalisés (10, 12, 14 et 16&nbsp;oz), des gobelets transparents personnalisables pour les boissons froides, des gobelets à glace en carton (1 boule de 55&nbsp;cc, 2 boules de 85&nbsp;cc), des pochettes personnalisées (tailles 0 à 4) et des papiers plateaux personnalisés. Précisez le produit qui vous intéresse dans votre demande de devis.</p><p><a href="${r}produits.html#autres-emballages">Voir les autres emballages</a></p>`,
+  },
+  {
     id: 'usages',
     group: 'gamme',
     tags: [],
@@ -75,7 +83,14 @@ export const faq = (r = '') => [
     group: 'commande',
     tags: ['home', 'perso'],
     q: 'Comment obtenir un devis ?',
-    a: `<p>Les tarifs ne sont pas publiés en ligne. Contactez PAPER CUP au <a href="${site.phone.href}">${site.phone.display}</a> ou par e-mail à <a href="mailto:${site.email}">${site.email}</a> en précisant le format, la quantité et, pour un gobelet personnalisé, votre visuel. Le <a href="${r}contact.html#devis">formulaire de la page Contact</a> vous aide à rassembler ces informations.</p>`,
+    a: `<p>Les tarifs ne sont pas publiés en ligne. Contactez PAPER CUP au <a href="${site.phone.href}">${site.phone.display}</a> ou par e-mail à <a href="mailto:${site.email}">${site.email}</a> en précisant le format, la quantité et, pour un gobelet personnalisé, votre visuel. Le <a href="${r}contact.html#devis">formulaire de la page Contact</a> vous aide à rassembler ces informations et permet de joindre votre logo ou votre maquette. PAPER CUP indique aussi un numéro WhatsApp sur sa page Facebook : <a href="${facebook.whatsapp.href}" rel="noopener" target="_blank">${facebook.whatsapp.display}<span class="visually-hidden"> (nouvel onglet)</span></a>.</p>`,
+  },
+  {
+    id: 'fichiers',
+    group: 'commande',
+    tags: ['perso'],
+    q: 'Puis-je joindre mon logo ou une maquette à ma demande ?',
+    a: `<p>Oui, c’est facultatif. Les formulaires « Demande de devis » et « Essayez votre marque » acceptent vos fichiers PNG, JPG, WEBP ou PDF : logo, maquette, image d’inspiration ou document de référence. Le nombre de fichiers et la taille maximale sont indiqués dans le formulaire. Les fichiers envoyés sont conservés dans un espace privé, consultable uniquement par l’équipe PAPER CUP.</p><p>Si l’envoi direct n’est pas disponible, le formulaire vous l’indique : joignez alors vos fichiers à votre e-mail à <a href="mailto:${site.email}">${site.email}</a>.</p>`,
   },
   {
     id: 'references',
@@ -96,6 +111,7 @@ export const faq = (r = '') => [
 /** Texte brut pour le JSON-LD FAQPage. */
 export const plain = (html) =>
   html
+    .replace(/<span class="visually-hidden">[^<]*<\/span>/g, '')
     .replace(/<li>/g, ' ')
     .replace(/<[^>]+>/g, '')
     .replace(/\s+/g, ' ')

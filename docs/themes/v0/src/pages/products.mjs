@@ -1,5 +1,6 @@
 /** Gamme (listing) + fiches produit générées depuis le même jeu de données. */
 import { site } from '../data/site.mjs';
+import { facebook } from '../data/facebook.mjs';
 import { products, accessories, productsJSON } from '../data/products.mjs';
 import { cup, carton, icon, fmt } from '../lib/svg.mjs';
 import { picture } from '../lib/media.mjs';
@@ -102,6 +103,35 @@ export const productsPage = {
       <p>Des couvercles avec trou sont proposés avec les gobelets de la gamme, ainsi que des agitateurs. Précisez-les dans votre demande de devis.</p>
     </header>
     <div class="accessories__grid">${accessories.map((a, i) => accessoryCard(a, r, { i })).join('')}</div>
+  </div>
+</section>
+<section class="section" id="autres-emballages" aria-labelledby="more-title">
+  <div class="container">
+    <header class="section-head section-head--split">
+      <div>
+        <p class="eyebrow">${icon('box', 'eyebrow__icon')}Autres emballages</p>
+        <h2 id="more-title">Au-delà du gobelet en carton.</h2>
+      </div>
+      <p>PAPER CUP présente aussi ces produits personnalisés sur sa page Facebook. Formats, matières et quantités sont à préciser avec l’équipe lors de votre demande de devis.</p>
+    </header>
+    <div class="feature-grid feature-grid--3">
+      ${facebook.moreProducts
+        .map(
+          (m, i) => `<article class="feature" id="${m.id}" data-reveal style="--i:${i % 3}">
+        <span class="feature__icon">${icon(m.icon)}</span>
+        <h3>${m.title}</h3>
+        <p>${m.text}</p>
+        <p class="feature__source">Présenté sur la page Facebook de PAPER CUP · ${m.source}</p>
+      </article>`,
+        )
+        .join('')}
+      <article class="feature feature--cta" data-reveal style="--i:2">
+        <span class="feature__icon">${icon('clipboard')}</span>
+        <h3>Votre projet d’emballage</h3>
+        <p>Décrivez le produit souhaité dans votre demande de devis et joignez votre logo si vous l’avez.</p>
+        <p class="feature__actions"><a class="btn btn--accent btn--sm" href="${r}contact.html#devis">Demander un devis ${icon('arrow-right')}</a><a class="link-arrow" href="${site.facebook}" rel="noopener" target="_blank">Page Facebook ${icon('arrow-up-right')}<span class="visually-hidden"> (nouvel onglet)</span></a></p>
+      </article>
+    </div>
   </div>
 </section>
 <section class="section section--surface" id="comparatif" aria-labelledby="compare-title">

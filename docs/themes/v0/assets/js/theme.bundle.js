@@ -2,7 +2,7 @@
 /* ==========================================================================
    PAPER CUP — Thème v0 · main.js
    Noyau : espace de noms, utilitaires partagés, registre de modules.
-   Le build concatène : main → navigation → animations → components → forms,
+   Le build concatène : main → navigation → animations → attachments → components → forms,
    puis ajoute `PC.start()`. Aucune dépendance.
    ========================================================================== */
 (function () {
@@ -369,6 +369,498 @@
 })(window.PC);
 
 /* ==========================================================================
+   PAPER CUP — Thème v0 · attachments.js
+   Pièces jointes facultatives des formulaires « Demande de devis » et
+   « Essayez votre marque » : glisser-déposer ou sélection classique, liste
+   (nom, taille, aperçu, retrait), contrôles de format, de taille et de nombre
+   d'après les limites EFFECTIVES annoncées par le serveur (GET api/demande.php),
+   progression de l'envoi.
+   Sans JavaScript, le champ <input type="file" multiple> natif reste utilisable.
+   Les contrôles faisant foi sont ceux du serveur (api/lib/uploads.php).
+   ========================================================================== */
+(function (PC) {
+  'use strict';
+
+  var IMAGE_EXT = { png: 1, jpg: 1, jpeg: 1, webp: 1 };
+
+  /** 245 760 → « 240 Ko » ; 1 572 864 → « 1,5 Mo ». */
+  PC.bytes = function (n) {
+    if (n >= 1048576) return String(Math.round((n / 1048576) * 10) / 10).replace('.', ',') + ' Mo';
+    return Math.max(1, Math.round(n / 1024)) + ' Ko';
+  };
+
+  /** Identifiant aléatoire (clé d'idempotence d'un envoi). */
+  PC.uid = function () {
+    var c = window.crypto;
+    if (c && typeof c.randomUUID === 'function') return c.randomUUID();
+    var a = new Uint8Array(16);
+    if (c && c.getRandomValues) c.getRandomValues(a);
+    else for (var i = 0; i < 16; i++) a[i] = Math.floor(Math.random() * 256);
+    return Array.prototype.map
+      .call(a, function (b) {
+        return ('0' + b.toString(16)).slice(-2);
+      })
+      .join('');
+  };
+
+  /**
+   * État du service d'envoi (mémorisé par URL). Résout la configuration, ou null si le service
+   * est absent (hébergement statique, file://, erreur) : les formulaires restent alors en mode
+   * « préparation » (récapitulatif à transmettre), comme avant.
+   */
+  var apiCache = {};
+  PC.api = function (endpoint) {
+    if (!endpoint || !window.fetch || location.protocol === 'file:') return Promise.resolve(null);
+    if (apiCache[endpoint]) return apiCache[endpoint];
+    var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = setTimeout(function () {
+      if (ctrl) ctrl.abort();
+    }, 8000);
+    apiCache[endpoint] = fetch(endpoint, {
+      headers: { Accept: 'application/json' },
+      credentials: 'same-origin',
+      cache: 'no-store',
+      signal: ctrl ? ctrl.signal : undefined,
+    })
+      .then(function (res) {
+        return res.ok ? res.json() : null;
+      })
+      .then(function (cfg) {
+        return cfg && cfg.ok === true && cfg.service === 'papercup-demandes' && cfg.uploads ? cfg : null;
+      })
+      .catch(function () {
+        return null;
+      })
+      .then(function (cfg) {
+        clearTimeout(timer);
+        return cfg;
+      });
+    return apiCache[endpoint];
+  };
+
+  var extOf = function (name) {
+    var m = /\.([a-z0-9]{1,5})$/i.exec(name || '');
+    return m ? m[1].toLowerCase() : '';
+  };
+  var iconSvg = function (name) {
+    return '<svg class="icon" width="24" height="24" aria-hidden="true" focusable="false"><use href="#i-' + name + '"/></svg>';
+  };
+  var quote = function (name) {
+    return '« ' + name + ' »';
+  };
+
+  /* ------------------------------------------------------------ Contrôleur */
+
+  function Attach(root) {
+    this.root = root;
+    this.input = PC.$('[data-attach-input]', root);
+    this.button = PC.$('[data-attach-button]', root);
+    this.zone = PC.$('[data-attach-zone]', root);
+    this.list = PC.$('[data-attach-list]', root);
+    this.status = PC.$('[data-attach-status]', root);
+    this.errors = PC.$('[data-attach-errors]', root);
+    this.rules = PC.$('[data-attach-rules]', root);
+    this.note = PC.$('[data-attach-note]', root);
+    this.defaultExt = (root.getAttribute('data-attach-ext') || 'png,jpg,jpeg,webp,pdf').split(',');
+    this.labels = root.getAttribute('data-attach-labels') || 'PNG, JPG, JPEG, WEBP et PDF';
+    this.items = [];
+    this.limits = null; // null : aucune limite serveur connue (mode préparation, rien n'est envoyé)
+    this.mode = 'pending'; // pending | connected | offline | disabled
+    this.busy = false;
+    this.listeners = [];
+    this.seq = 0;
+    this.enhance();
+  }
+
+  Attach.prototype.enhance = function () {
+    var self = this;
+    this.root.classList.add('is-enhanced');
+    PC.$$('[data-attach-enhanced]', this.root).forEach(function (el) {
+      el.hidden = false;
+    });
+    PC.$$('[data-attach-native]', this.root).forEach(function (el) {
+      el.hidden = true;
+    });
+    // Le bouton remplace le champ natif (masqué visuellement, hors tabulation).
+    this.input.tabIndex = -1;
+    this.input.setAttribute('aria-hidden', 'true');
+    this.button.addEventListener('click', function () {
+      if (!self.busy) self.input.click();
+    });
+    this.input.addEventListener('change', function () {
+      self.add(self.input.files);
+      self.input.value = '';
+    });
+
+    var depth = 0;
+    var hasFiles = function (e) {
+      var t = e.dataTransfer && e.dataTransfer.types;
+      return t && Array.prototype.indexOf.call(t, 'Files') !== -1;
+    };
+    this.zone.addEventListener('dragenter', function (e) {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      depth++;
+      self.zone.classList.add('is-dragover');
+    });
+    this.zone.addEventListener('dragover', function (e) {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = self.busy ? 'none' : 'copy';
+    });
+    this.zone.addEventListener('dragleave', function () {
+      depth = Math.max(0, depth - 1);
+      if (!depth) self.zone.classList.remove('is-dragover');
+    });
+    this.zone.addEventListener('drop', function (e) {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      depth = 0;
+      self.zone.classList.remove('is-dragover');
+      if (!self.busy) self.add(e.dataTransfer.files);
+    });
+  };
+
+  Attach.prototype.onChange = function (cb) {
+    this.listeners.push(cb);
+  };
+  Attach.prototype.emit = function () {
+    var self = this;
+    this.listeners.forEach(function (cb) {
+      cb(self);
+    });
+  };
+
+  Attach.prototype.extensions = function () {
+    return this.limits ? this.limits.extensions : this.defaultExt;
+  };
+
+  /** Mode et limites, d'après la configuration du serveur (ou null : mode préparation). */
+  Attach.prototype.setConfig = function (cfg) {
+    var u = cfg && cfg.uploads;
+    var email = this.root.getAttribute('data-attach-email') || '';
+    if (u && u.enabled && u.maxFiles > 0) {
+      this.mode = 'connected';
+      this.limits = u;
+      this.labels = u.labels;
+      this.input.setAttribute(
+        'accept',
+        u.extensions
+          .map(function (e) {
+            return '.' + e;
+          })
+          .concat(u.mimes)
+          .join(','),
+      );
+      this.rules.textContent =
+        'Formats acceptés : ' + u.labels + '. Jusqu’à ' + u.maxFiles + ' fichier' + (u.maxFiles > 1 ? 's' : '') +
+        ', ' + PC.bytes(u.maxFileBytes) + ' par fichier' + (u.maxFiles > 1 ? ', ' + PC.bytes(u.maxTotalBytes) + ' au total' : '') + '.';
+      this.setNote('');
+    } else if (u) {
+      // Service joignable mais réception de fichiers désactivée par le serveur.
+      this.mode = 'disabled';
+      this.limits = null;
+      this.zone.hidden = true;
+      this.clear();
+      this.setNote('L’envoi de fichiers n’est pas disponible pour le moment. Envoyez votre demande, puis transmettez vos fichiers par e-mail' + (email ? ' à ' + email : '') + '.');
+    } else {
+      this.mode = 'offline';
+      this.limits = null;
+      this.setNote('Vos fichiers restent sur votre appareil : ils ne sont pas envoyés par ce formulaire. Joignez-les à votre e-mail' + (email ? ' à ' + email : '') + '.');
+    }
+    this.revalidate();
+  };
+
+  Attach.prototype.setNote = function (text) {
+    if (!this.note) return;
+    this.note.textContent = text;
+    this.note.hidden = !text;
+  };
+
+  /** Raison du refus d'un fichier, ou chaîne vide. */
+  Attach.prototype.check = function (file, kept) {
+    var ext = extOf(file.name);
+    var name = quote(file.name);
+    var l = this.limits;
+    if (this.extensions().indexOf(ext) === -1) return name + ' : format non accepté (' + this.labels + ').';
+    if (!file.size) return name + ' : le fichier est vide.';
+    if (!l) return '';
+    if (file.size > l.maxFileBytes) return name + ' : fichier trop volumineux (' + PC.bytes(l.maxFileBytes) + ' maximum).';
+    if (kept.length >= l.maxFiles) return name + ' n’a pas été ajouté : ' + l.maxFiles + ' fichier' + (l.maxFiles > 1 ? 's' : '') + ' au maximum.';
+    var total = kept.reduce(function (s, it) {
+      return s + it.file.size;
+    }, file.size);
+    if (total > l.maxTotalBytes) return name + ' n’a pas été ajouté : l’ensemble dépasserait ' + PC.bytes(l.maxTotalBytes) + '.';
+    return '';
+  };
+
+  Attach.prototype.add = function (fileList) {
+    var self = this;
+    var files = Array.prototype.slice.call(fileList || []);
+    if (!files.length) return;
+    var refused = [];
+    var added = [];
+    files.forEach(function (file) {
+      var dup = self.items.some(function (it) {
+        return it.file.name === file.name && it.file.size === file.size && it.file.lastModified === file.lastModified;
+      });
+      if (dup) {
+        refused.push(quote(file.name) + ' est déjà dans la liste.');
+        return;
+      }
+      var why = self.check(file, self.items);
+      if (why) {
+        refused.push(why);
+        return;
+      }
+      var item = { id: 'f' + ++self.seq, file: file, ext: extOf(file.name), url: '', error: '' };
+      self.items.push(item);
+      self.render(item);
+      added.push(file.name);
+    });
+    this.showErrors(refused);
+    this.updateList();
+    if (added.length) {
+      this.announce(
+        (added.length === 1 ? quote(added[0]) + ' ajouté.' : added.length + ' fichiers ajoutés.') +
+          ' ' + this.items.length + ' fichier' + (this.items.length > 1 ? 's' : '') + ' joint' + (this.items.length > 1 ? 's' : '') + '.',
+      );
+      this.emit();
+    }
+  };
+
+  Attach.prototype.render = function (item) {
+    var self = this;
+    var li = document.createElement('li');
+    li.className = 'attach__item';
+    var thumb = document.createElement('span');
+    thumb.className = 'attach__thumb';
+    thumb.setAttribute('aria-hidden', 'true');
+    if (IMAGE_EXT[item.ext] && window.URL && URL.createObjectURL) {
+      item.url = URL.createObjectURL(item.file);
+      var img = document.createElement('img');
+      img.src = item.url;
+      img.alt = '';
+      img.decoding = 'async';
+      thumb.appendChild(img);
+    } else {
+      thumb.innerHTML = iconSvg('file') + '<span>' + item.ext.toUpperCase() + '</span>';
+    }
+    var meta = document.createElement('span');
+    meta.className = 'attach__meta';
+    var name = document.createElement('span');
+    name.className = 'attach__name';
+    name.textContent = item.file.name;
+    var size = document.createElement('span');
+    size.className = 'attach__size';
+    size.textContent = item.ext.toUpperCase() + ' · ' + PC.bytes(item.file.size);
+    var err = document.createElement('span');
+    err.className = 'attach__item-error';
+    err.hidden = true;
+    var bar = document.createElement('progress');
+    bar.className = 'attach__progress';
+    bar.max = 100;
+    bar.value = 0;
+    bar.hidden = true;
+    bar.setAttribute('aria-label', 'Envoi de ' + item.file.name);
+    meta.appendChild(name);
+    meta.appendChild(size);
+    meta.appendChild(err);
+    meta.appendChild(bar);
+    var rm = document.createElement('button');
+    rm.type = 'button';
+    rm.className = 'attach__remove';
+    rm.setAttribute('aria-label', 'Retirer ' + item.file.name);
+    rm.innerHTML = iconSvg('trash');
+    rm.addEventListener('click', function () {
+      self.remove(item.id);
+    });
+    li.appendChild(thumb);
+    li.appendChild(meta);
+    li.appendChild(rm);
+    item.el = li;
+    item.errEl = err;
+    item.bar = bar;
+    item.rm = rm;
+    this.list.appendChild(li);
+  };
+
+  Attach.prototype.remove = function (id) {
+    if (this.busy) return;
+    var idx = -1;
+    this.items.forEach(function (it, i) {
+      if (it.id === id) idx = i;
+    });
+    if (idx === -1) return;
+    var item = this.items.splice(idx, 1)[0];
+    if (item.url) URL.revokeObjectURL(item.url);
+    item.el.parentNode.removeChild(item.el);
+    this.updateList();
+    // Focus : fichier suivant, sinon précédent, sinon bouton d'ajout.
+    var next = this.items[idx] || this.items[idx - 1];
+    (next ? next.rm : this.button).focus();
+    this.showErrors([]);
+    this.announce(quote(item.file.name) + ' retiré. ' + (this.items.length ? this.items.length + ' fichier' + (this.items.length > 1 ? 's' : '') + ' restant' + (this.items.length > 1 ? 's' : '') + '.' : 'Aucun fichier joint.'));
+    this.emit();
+  };
+
+  /** Retire tout (nouvelle demande). */
+  Attach.prototype.clear = function () {
+    this.items.forEach(function (it) {
+      if (it.url) URL.revokeObjectURL(it.url);
+    });
+    this.items = [];
+    this.list.innerHTML = '';
+    this.updateList();
+    this.showErrors([]);
+    this.emit();
+  };
+
+  /** Applique de nouvelles limites aux fichiers déjà choisis (configuration reçue après une sélection rapide). */
+  Attach.prototype.revalidate = function () {
+    var self = this;
+    var kept = [];
+    var refused = [];
+    this.items.slice().forEach(function (it) {
+      var why = self.check(it.file, kept);
+      if (why) {
+        refused.push(why);
+        if (it.url) URL.revokeObjectURL(it.url);
+        it.el.parentNode.removeChild(it.el);
+      } else kept.push(it);
+    });
+    if (refused.length) {
+      this.items = kept;
+      this.showErrors(refused);
+      this.updateList();
+      this.emit();
+    }
+  };
+
+  Attach.prototype.updateList = function () {
+    this.list.hidden = !this.items.length;
+    this.root.classList.toggle('has-files', this.items.length > 0);
+  };
+
+  Attach.prototype.showErrors = function (messages) {
+    if (!this.errors) return;
+    this.errors.innerHTML = '';
+    if (!messages.length) {
+      this.errors.hidden = true;
+      return;
+    }
+    var ul = document.createElement('ul');
+    messages.forEach(function (m) {
+      var li = document.createElement('li');
+      li.textContent = m;
+      ul.appendChild(li);
+    });
+    this.errors.appendChild(ul);
+    this.errors.hidden = false;
+  };
+
+  Attach.prototype.announce = function (text) {
+    var s = this.status;
+    if (!s) return;
+    s.textContent = '';
+    setTimeout(function () {
+      s.textContent = text;
+    }, 60);
+  };
+
+  Attach.prototype.files = function () {
+    return this.items.map(function (it) {
+      return it.file;
+    });
+  };
+
+  Attach.prototype.hasErrors = function () {
+    return this.items.some(function (it) {
+      return it.error;
+    });
+  };
+
+  /** Pendant l'envoi : ajout et retrait verrouillés, barres de progression visibles. */
+  Attach.prototype.setBusy = function (busy) {
+    this.busy = busy;
+    this.root.classList.toggle('is-busy', busy);
+    this.button.disabled = busy;
+    this.items.forEach(function (it) {
+      it.rm.disabled = busy;
+      it.bar.hidden = !busy;
+      if (busy) it.bar.value = 0;
+    });
+  };
+
+  /**
+   * Progression par fichier, déduite des octets envoyés : les fichiers sont ajoutés au corps
+   * de la requête après les champs texte, dans l'ordre de la liste.
+   */
+  Attach.prototype.progress = function (loaded, total) {
+    var sum = this.items.reduce(function (s, it) {
+      return s + it.file.size;
+    }, 0);
+    var offset = Math.max(0, total - sum);
+    this.items.forEach(function (it) {
+      var done = Math.min(1, Math.max(0, (loaded - offset) / (it.file.size || 1)));
+      it.bar.value = Math.round(done * 100);
+      offset += it.file.size;
+    });
+  };
+
+  /** Erreurs renvoyées par le serveur : fichier concerné signalé dans la liste, le reste en message. */
+  Attach.prototype.serverErrors = function (list) {
+    var self = this;
+    var general = [];
+    this.items.forEach(function (it) {
+      it.error = '';
+      it.errEl.hidden = true;
+      it.el.classList.remove('is-error');
+    });
+    (list || []).forEach(function (e) {
+      var match = e.name &&
+        self.items.filter(function (it) {
+          return it.file.name === e.name || it.file.name.replace(/[<>:"|?*]/g, '_') === e.name;
+        })[0];
+      if (match) {
+        match.error = e.message;
+        match.errEl.textContent = e.message;
+        match.errEl.hidden = false;
+        match.el.classList.add('is-error');
+      } else general.push((e.name ? quote(e.name) + ' : ' : '') + e.message);
+    });
+    this.showErrors(general);
+  };
+
+  /** Contrôleur d'un champ [data-attach] (créé à la demande). */
+  PC.attachFor = function (scope) {
+    var root = scope && (scope.matches && scope.matches('[data-attach]') ? scope : PC.$('[data-attach]', scope));
+    if (!root) return null;
+    if (!root._pcAttach) root._pcAttach = new Attach(root);
+    return root._pcAttach;
+  };
+
+  PC.register('attachments', function () {
+    var fields = PC.$$('[data-attach]');
+    if (!fields.length) return;
+    fields.forEach(function (root) {
+      PC.attachFor(root);
+    });
+    // Un fichier lâché à côté de la zone ne doit pas ouvrir le fichier à la place de la page
+    // (ce qui ferait perdre la saisie en cours).
+    ['dragover', 'drop'].forEach(function (type) {
+      document.addEventListener(type, function (e) {
+        var t = e.dataTransfer && e.dataTransfer.types;
+        if (t && Array.prototype.indexOf.call(t, 'Files') !== -1 && !e.defaultPrevented) {
+          e.preventDefault();
+          if (type === 'dragover') e.dataTransfer.dropEffect = 'none';
+        }
+      });
+    });
+  });
+})(window.PC);
+
+/* ==========================================================================
    PAPER CUP — Thème v0 · components.js
    Interrupteur « vue technique », atelier de personnalisation, bandeau de
    références, visionneuse de réalisations, galerie à onglets, accordéons.
@@ -396,7 +888,8 @@
       var label = PC.$('[data-studio-label]', root);
       var cups = PC.$$('[data-studio-cup]', root);
       var texts = PC.$$('.js-brand-text', root);
-      var state = { name: '', format: (PC.$('input[name$="-format"]:checked', root) || {}).value };
+      var logos = PC.$$('.js-brand-logo', root);
+      var state = { name: '', format: (PC.$('[data-studio-format]:checked', root) || {}).value, logo: '' };
 
       // Ajuste la longueur du texte à la largeur visible du gobelet.
       var fit = function () {
@@ -420,6 +913,33 @@
         cta.href = url + '#devis';
       };
 
+      // Logo joint (image) : affiché sur l'aperçu, au-dessus du nom s'il est saisi. Rien n'est envoyé ici.
+      var placeLogo = function () {
+        root.classList.toggle('has-logo', Boolean(state.logo));
+        root.classList.toggle('has-name', Boolean(state.name));
+        logos.forEach(function (img) {
+          var box = (img.getAttribute(state.name ? 'data-box-top' : 'data-box-full') || '').split(' ');
+          if (box.length === 4) {
+            img.setAttribute('x', box[0]);
+            img.setAttribute('y', box[1]);
+            img.setAttribute('width', box[2]);
+            img.setAttribute('height', box[3]);
+          }
+          if (state.logo) img.setAttribute('href', state.logo);
+          else img.removeAttribute('href');
+        });
+      };
+      var attach = PC.attachFor && PC.attachFor(root);
+      if (attach && logos.length) {
+        attach.onChange(function (a) {
+          var first = a.items.filter(function (it) {
+            return it.url;
+          })[0];
+          state.logo = first ? first.url : '';
+          placeLogo();
+        });
+      }
+
       if (input) {
         input.addEventListener('input', function () {
           state.name = input.value.trim().slice(0, 18);
@@ -429,6 +949,7 @@
           });
           fit();
           updateLink();
+          placeLogo();
         });
         input.addEventListener('keydown', function (e) {
           if (e.key === 'Enter') e.preventDefault();
@@ -436,9 +957,8 @@
       }
 
       root.addEventListener('change', function (e) {
-        var name = e.target.name || '';
-        if (/-ink$/.test(name)) root.style.setProperty('--print', e.target.value);
-        if (/-format$/.test(name)) {
+        if (e.target.hasAttribute('data-studio-ink')) root.style.setProperty('--print', e.target.value);
+        if (e.target.hasAttribute('data-studio-format')) {
           state.format = e.target.value;
           cups.forEach(function (c) {
             c.classList.toggle('is-active', c.getAttribute('data-studio-cup') === state.format);
@@ -599,13 +1119,16 @@
 
 /* ==========================================================================
    PAPER CUP — Thème v0 · forms.js
-   Estimateur de cartons et formulaire « Préparer ma demande de devis ».
+   Estimateur de cartons, formulaire « Demande de devis » et formulaire
+   « Essayez votre marque » (atelier d'aperçu).
 
-   Le formulaire du site source dépend d'un script serveur (sendmail/mail.php) absent
-   de ce thème statique : par défaut, le formulaire n'envoie RIEN. Il génère un
-   récapitulatif à envoyer par e-mail (lien mailto: pré-rempli), à dicter ou à copier.
-   Si l'attribut data-endpoint du <form> reçoit une URL (voir README), la demande
-   est envoyée en POST JSON et les états succès / erreur sont affichés.
+   Deux modes, choisis automatiquement au chargement :
+   - « connecté » : l'API PHP du thème répond (GET data-endpoint, voir api/demande.php).
+     La demande et ses pièces jointes sont envoyées (multipart, progression, clé
+     d'idempotence conservée entre les tentatives : aucun doublon en cas de nouvel essai).
+   - « préparation » : pas d'API (hébergement statique, file://). Rien n'est envoyé :
+     le formulaire génère un récapitulatif à transmettre par e-mail (lien mailto:
+     pré-rempli), à dicter ou à copier, et rappelle les fichiers à joindre.
    ========================================================================== */
 (function (PC) {
   'use strict';
@@ -679,6 +1202,71 @@
     });
   });
 
+  /* ------------------------------------------------------ Envoi commun */
+
+  /**
+   * Envoie le formulaire (champs + fichiers retenus) en multipart. Résout toujours
+   * { status, data } ; status 0 = réseau indisponible ou délai dépassé.
+   */
+  PC.sendForm = function (endpoint, form, attach) {
+    return new Promise(function (resolve) {
+      var fd = new FormData(form);
+      fd.delete('fichiers[]');
+      if (attach && attach.mode === 'connected') {
+        attach.files().forEach(function (f) {
+          fd.append('fichiers[]', f, f.name);
+        });
+      }
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', endpoint);
+      xhr.setRequestHeader('Accept', 'application/json');
+      xhr.timeout = 10 * 60 * 1000;
+      if (attach && xhr.upload) {
+        xhr.upload.addEventListener('progress', function (e) {
+          if (e.lengthComputable) attach.progress(e.loaded, e.total);
+        });
+      }
+      xhr.onload = function () {
+        var data = null;
+        try {
+          data = JSON.parse(xhr.responseText);
+        } catch (e) {
+          data = null;
+        }
+        resolve({ status: xhr.status, data: data });
+      };
+      xhr.onerror = xhr.ontimeout = xhr.onabort = function () {
+        resolve({ status: 0, data: null });
+      };
+      xhr.send(fd);
+    });
+  };
+
+  /** Message d'échec à afficher (les saisies et les fichiers restent dans le formulaire). */
+  PC.sendError = function (res, phone) {
+    if (res.data && res.data.message) return res.data.message;
+    if (res.status === 0) return 'L’envoi n’a pas abouti (connexion interrompue ou trop lente). Vos informations et vos fichiers sont conservés : renvoyez la demande, elle ne sera pas enregistrée deux fois.';
+    if (res.status === 413) return 'L’envoi dépasse la taille acceptée par le serveur. Retirez un ou plusieurs fichiers, puis renvoyez votre demande.';
+    return 'L’envoi a échoué. Vos informations sont conservées : réessayez ou appelez le ' + phone + '.';
+  };
+
+  /** Clé d'idempotence : créée une fois, conservée jusqu'au succès de l'envoi. */
+  var idempotence = function (form, renew) {
+    var el = form.querySelector('[data-idempotence]');
+    if (!el) return;
+    if (renew || !el.value) el.value = PC.uid();
+  };
+
+  /** Liste des fichiers pour un récapitulatif texte. */
+  var filesSummary = function (attach, title) {
+    if (!attach || !attach.files().length) return [];
+    return ['', title].concat(
+      attach.files().map(function (f) {
+        return '- ' + f.name + ' (' + PC.bytes(f.size) + ')';
+      }),
+    );
+  };
+
   /* --------------------------------------------- Formulaire de demande de devis */
   PC.register('quote-form', function () {
     var form = PC.$('[data-quote-form]');
@@ -686,17 +1274,40 @@
     var result = PC.$('[data-quote-result]');
     var summaryEl = PC.$('[data-quote-summary]');
     var errorsBox = PC.$('[data-form-errors]', form);
+    var errorsIntro = PC.$('p', errorsBox);
+    var errorsIntroDefault = errorsIntro.textContent;
     var qtyHint = PC.$('[data-qty-hint]', form);
     var submitBtn = PC.$('[type="submit"]', form);
+    var submitLabel = PC.$('[data-submit-label]', submitBtn);
+    var note = PC.$('[data-form-note]', form);
     var endpoint = (form.getAttribute('data-endpoint') || '').trim();
+    var phone = form.getAttribute('data-phone') || '';
     var qtyHintDefault = qtyHint ? qtyHint.textContent : '';
+    var attach = PC.attachFor(form);
+    var connected = false;
+    var sending = false;
 
-    if (endpoint) {
-      form.classList.add('is-connected');
+    /* Envoi direct si l'API répond ; sinon mode préparation (récapitulatif), comme avant. */
+    var setMode = function (cfg) {
+      connected = Boolean(cfg);
+      form.classList.toggle('is-connected', connected);
       PC.$$('[data-required-when-connected]', form).forEach(function (el) {
-        el.required = true;
+        el.required = connected;
       });
-    }
+      PC.$$('[data-req-mark]', form).forEach(function (el) {
+        el.hidden = !connected;
+      });
+      if (submitLabel) submitLabel.textContent = submitBtn.getAttribute(connected ? 'data-label-connected' : 'data-label-offline');
+      if (note) note.textContent = note.getAttribute(connected ? 'data-note-connected' : 'data-note-offline');
+      if (attach) attach.setConfig(cfg);
+    };
+    // Le HTML est rendu en mode connecté : il n'est modifié qu'une fois la réponse de l'API connue
+    // (aucun basculement visible au chargement sur un hébergement PHP).
+    var ready = PC.api(endpoint).then(function (cfg) {
+      setMode(cfg);
+      if (cfg) idempotence(form, false);
+      return cfg;
+    });
 
     /* Pré-remplissage depuis l'URL (?format=9oz&qte=10000&type=personnalise&marque=…) */
     var params = new URLSearchParams(location.search);
@@ -730,6 +1341,7 @@
     /* --------------------------------------------------------- Validation */
     var rules = [
       {
+        name: 'type',
         field: function () {
           return form.querySelector('input[name="type"]');
         },
@@ -739,6 +1351,7 @@
         errorId: 'err-type',
       },
       {
+        name: 'format',
         field: function () {
           return form.querySelector('input[name="format"]');
         },
@@ -748,6 +1361,7 @@
         errorId: 'err-format',
       },
       {
+        name: 'quantite',
         field: function () {
           return form.quantite;
         },
@@ -761,17 +1375,19 @@
         errorId: 'err-qty',
       },
       {
+        name: 'telephone',
         field: function () {
           return form.telephone;
         },
         check: function () {
           var v = form.telephone.value.trim();
           if (!v) return form.telephone.required ? 'Indiquez un numéro de téléphone pour être rappelé.' : '';
-          return /^[+()\d\s.-]{8,20}$/.test(v) ? '' : 'Le numéro de téléphone semble incomplet.';
+          return /^[+()\d\s.-]{8,20}$/.test(v) && (v.match(/\d/g) || []).length >= 8 ? '' : 'Le numéro de téléphone semble incomplet.';
         },
         errorId: 'err-phone',
       },
       {
+        name: 'nom',
         field: function () {
           return form.nom;
         },
@@ -780,12 +1396,23 @@
         },
         errorId: 'err-name',
       },
+      {
+        name: 'email',
+        field: function () {
+          return form.email;
+        },
+        check: function () {
+          var v = form.email ? form.email.value.trim() : '';
+          return !v || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? '' : 'L’adresse e-mail semble incorrecte.';
+        },
+        errorId: 'err-email',
+      },
     ];
 
     var showError = function (rule, msg) {
       var el = rule.field();
       var box = document.getElementById(rule.errorId);
-      if (!box) return;
+      if (!box || !el) return;
       box.hidden = !msg;
       box.querySelector('span').textContent = msg;
       var targets = el.type === 'radio' ? PC.$$('input[name="' + el.name + '"]', form) : [el];
@@ -818,69 +1445,17 @@
       });
     });
 
-    /* ------------------------------------------------------- Récapitulatif */
-    var buildSummary = function () {
-      var f = form.querySelector('input[name="format"]:checked');
-      var p = PC.product(f.value);
-      var q = parseInt(form.quantite.value, 10);
-      var lines = [
-        'DEMANDE DE DEVIS — GOBELETS EN CARTON',
-        '',
-        'Type        : ' + (isCustom() ? 'Gobelet personnalisé' : 'Gobelet standard'),
-        'Format      : ' + p.label + ' (modèle ' + p.model + ')',
-        'Quantité    : ' + PC.fmt(q) + ' gobelets',
-        'Estimation  : environ ' + PC.fmt(cartonsFor(p, q)) + ' carton(s) de ' + PC.fmt(p.perBox) + ' pièces',
-      ];
-      var opt = [
-        ['Société     : ', form.societe.value],
-        ['Contact     : ', form.nom.value],
-        ['Téléphone   : ', form.telephone.value],
-        ['Ville       : ', form.ville.value],
-      ];
-      opt.forEach(function (o) {
-        if (o[1].trim()) lines.push(o[0] + o[1].trim());
-      });
-      if (form.message.value.trim()) lines.push('', 'Projet :', form.message.value.trim());
-      return lines.join('\n');
-    };
-
-    var payload = function () {
-      var data = {};
-      new FormData(form).forEach(function (v, k) {
-        data[k] = typeof v === 'string' ? v.trim() : v;
-      });
-      return data;
-    };
-
-    var mailto = PC.$('[data-mailto]', result);
-    var showResult = function (title, text, summary) {
-      PC.$('[data-result-title]', result).textContent = title;
-      PC.$('[data-result-text]', result).textContent = text;
-      summaryEl.textContent = summary;
-      if (mailto) {
-        // Le client de messagerie s'ouvre avec la demande pré-remplie (aucun envoi automatique).
-        mailto.href =
-          'mailto:' + mailto.getAttribute('data-email') +
-          '?subject=' + encodeURIComponent('Demande de devis — gobelets en carton') +
-          '&body=' + encodeURIComponent(summary.replace(/\u00a0/g, ' '));
-      }
-      form.hidden = true;
-      result.hidden = false;
-      result.focus();
-      result.scrollIntoView({ behavior: PC.reducedMotion() ? 'auto' : 'smooth', block: 'start' });
-    };
-
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var errors = validate();
-      if (errors.length) {
-        var ul = PC.$('ul', errorsBox);
-        ul.innerHTML = '';
-        errors.forEach(function (er) {
-          var li = document.createElement('li');
+    /** Résumé d'erreurs focalisé, avec liens vers les champs. */
+    var showSummary = function (errors, intro) {
+      var ul = PC.$('ul', errorsBox);
+      ul.innerHTML = '';
+      errorsIntro.textContent = intro || errorsIntroDefault;
+      errors.forEach(function (er) {
+        var li = document.createElement('li');
+        var target = er.rule ? er.rule.field() : null;
+        var id = target && (target.id || (form.querySelector('input[name="' + target.name + '"]') || {}).id);
+        if (id) {
           var a = document.createElement('a');
-          var target = er.rule.field();
-          var id = target.id || (form.querySelector('input[name="' + target.name + '"]') || {}).id;
           a.href = '#' + id;
           a.textContent = er.msg;
           a.addEventListener('click', function (ev) {
@@ -888,48 +1463,136 @@
             document.getElementById(id).focus();
           });
           li.appendChild(a);
-          ul.appendChild(li);
-        });
-        errorsBox.hidden = false;
-        errorsBox.focus();
-        return;
-      }
-      errorsBox.hidden = true;
-      var summary = buildSummary();
+        } else li.textContent = er.msg;
+        ul.appendChild(li);
+      });
+      errorsBox.hidden = false;
+      errorsBox.focus();
+    };
 
-      if (!endpoint) {
-        showResult(
-          'Votre demande est prête',
-          'Rien n’a encore été envoyé : transmettez ce récapitulatif par e-mail (votre messagerie s’ouvre avec la demande pré-remplie), par téléphone, ou copiez-le.',
-          summary,
-        );
-        return;
-      }
+    /* ------------------------------------------------------- Récapitulatif */
+    var buildSummary = function (reference) {
+      var f = form.querySelector('input[name="format"]:checked');
+      var p = PC.product(f.value);
+      var q = parseInt(form.quantite.value, 10);
+      var lines = ['DEMANDE DE DEVIS — GOBELETS EN CARTON', ''];
+      if (reference) lines.push('Référence   : ' + reference);
+      lines.push(
+        'Type        : ' + (isCustom() ? 'Gobelet personnalisé' : 'Gobelet standard'),
+        'Format      : ' + p.label + ' (modèle ' + p.model + ')',
+        'Quantité    : ' + PC.fmt(q) + ' gobelets',
+        'Estimation  : environ ' + PC.fmt(cartonsFor(p, q)) + ' carton(s) de ' + PC.fmt(p.perBox) + ' pièces',
+      );
+      var opt = [
+        ['Société     : ', form.societe.value],
+        ['Contact     : ', form.nom.value],
+        ['Téléphone   : ', form.telephone.value],
+        ['E-mail      : ', form.email ? form.email.value : ''],
+        ['Ville       : ', form.ville.value],
+      ];
+      opt.forEach(function (o) {
+        if (o[1].trim()) lines.push(o[0] + o[1].trim());
+      });
+      if (form.message.value.trim()) lines.push('', 'Projet :', form.message.value.trim());
+      lines = lines.concat(filesSummary(attach, reference ? 'Fichiers transmis :' : 'Fichiers à joindre à l’e-mail :'));
+      return lines.join('\n');
+    };
 
-      submitBtn.disabled = true;
-      submitBtn.setAttribute('aria-busy', 'true');
-      var original = submitBtn.innerHTML;
-      submitBtn.textContent = 'Envoi en cours…';
-      fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(payload()),
-      })
-        .then(function (res) {
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-          showResult('Demande envoyée', 'Merci. Votre demande a bien été transmise à PAPER CUP. Voici le récapitulatif envoyé.', summary);
-        })
-        .catch(function () {
-          errorsBox.hidden = false;
-          PC.$('p', errorsBox).textContent = 'L’envoi a échoué. Vérifiez votre connexion ou appelez directement le (+216) 75 290 088.';
-          PC.$('ul', errorsBox).innerHTML = '';
-          errorsBox.focus();
-        })
-        .then(function () {
-          submitBtn.disabled = false;
-          submitBtn.removeAttribute('aria-busy');
-          submitBtn.innerHTML = original;
+    var mailto = PC.$('[data-mailto]', result);
+    var editBtn = PC.$('[data-quote-edit]');
+    var showResult = function (title, text, summary, sent) {
+      PC.$('[data-result-title]', result).textContent = title;
+      PC.$('[data-result-text]', result).textContent = text;
+      summaryEl.textContent = summary;
+      if (mailto) {
+        // Mode préparation : la messagerie s'ouvre avec la demande pré-remplie (aucun envoi automatique).
+        mailto.hidden = Boolean(sent);
+        mailto.href =
+          'mailto:' + mailto.getAttribute('data-email') +
+          '?subject=' + encodeURIComponent('Demande de devis — gobelets en carton') +
+          '&body=' + encodeURIComponent(summary.replace(/ /g, ' '));
+      }
+      if (editBtn) editBtn.textContent = sent ? 'Faire une autre demande' : 'Modifier ma demande';
+      result.classList.toggle('is-sent', Boolean(sent));
+      form.hidden = true;
+      result.hidden = false;
+      result.focus();
+      result.scrollIntoView({ behavior: PC.reducedMotion() ? 'auto' : 'smooth', block: 'start' });
+    };
+
+    var setSending = function (on) {
+      sending = on;
+      submitBtn.disabled = on;
+      if (on) submitBtn.setAttribute('aria-busy', 'true');
+      else submitBtn.removeAttribute('aria-busy');
+      if (submitLabel) submitLabel.textContent = on ? 'Envoi en cours…' : submitBtn.getAttribute(connected ? 'data-label-connected' : 'data-label-offline');
+      if (attach) attach.setBusy(on);
+    };
+
+    /** Erreurs renvoyées par le serveur : affichées sur les champs et dans le résumé. */
+    var serverFailure = function (res) {
+      var list = [];
+      var fields = (res.data && res.data.fields) || {};
+      Object.keys(fields).forEach(function (name) {
+        var rule = rules.filter(function (r) {
+          return r.name === name;
+        })[0];
+        if (rule) showError(rule, fields[name]);
+        list.push({ rule: rule, msg: fields[name] });
+      });
+      if (attach) attach.serverErrors((res.data && res.data.files) || []);
+      if (!list.length && res.data && res.data.files && res.data.files.length) {
+        res.data.files.forEach(function (f) {
+          list.push({ msg: (f.name ? '« ' + f.name + ' » : ' : '') + f.message });
         });
+      }
+      showSummary(list, PC.sendError(res, phone));
+    };
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (sending) return;
+      ready.then(function () {
+        var errors = validate();
+        if (attach && attach.hasErrors()) {
+          errors.push({ msg: 'Retirez ou remplacez les fichiers signalés dans la liste des pièces jointes.' });
+        }
+        if (errors.length) {
+          showSummary(errors);
+          return;
+        }
+        errorsBox.hidden = true;
+
+        if (!connected) {
+          var prep = buildSummary('');
+          showResult(
+            'Votre demande est prête',
+            'Rien n’a encore été envoyé : transmettez ce récapitulatif par e-mail (votre messagerie s’ouvre avec la demande pré-remplie), par téléphone, ou copiez-le.' +
+              (attach && attach.files().length ? ' Pensez à joindre vos fichiers à l’e-mail : ils ne sont pas ajoutés automatiquement.' : ''),
+            prep,
+            false,
+          );
+          return;
+        }
+
+        idempotence(form, false);
+        setSending(true);
+        PC.sendForm(endpoint, form, attach).then(function (res) {
+          setSending(false);
+          if (res.data && res.data.ok) {
+            var ref = res.data.id;
+            showResult(
+              'Demande envoyée',
+              res.data.message + ' Référence : ' + ref + '.' + (res.data.notified ? '' : ' Pour un traitement rapide, vous pouvez aussi appeler le ' + phone + '.'),
+              buildSummary(ref),
+              true,
+            );
+            idempotence(form, true);
+            return;
+          }
+          serverFailure(res);
+        });
+      });
     });
 
     /* ------------------------------------------------------- Actions résultat */
@@ -947,15 +1610,190 @@
         );
       });
     }
-    var edit = PC.$('[data-quote-edit]');
-    if (edit) {
-      edit.addEventListener('click', function () {
+    if (editBtn) {
+      editBtn.addEventListener('click', function () {
+        // Après un envoi réussi : nouvelle demande (coordonnées conservées, fichiers retirés).
+        if (result.classList.contains('is-sent') && attach) attach.clear();
         result.hidden = true;
         form.hidden = false;
         status.textContent = '';
         submitBtn.focus();
       });
     }
+  });
+
+  /* ------------------------------------ Formulaire « Essayez votre marque » */
+  PC.register('brand-form', function () {
+    PC.$$('[data-brand-form]').forEach(function (form) {
+      var endpoint = (form.getAttribute('data-endpoint') || '').trim();
+      var phone = form.getAttribute('data-phone') || '';
+      var attach = PC.attachFor(form);
+      var errorsBox = PC.$('[data-form-errors]', form);
+      var errorsIntro = PC.$('p', errorsBox);
+      var errorsIntroDefault = errorsIntro.textContent;
+      var submitBtn = PC.$('[type="submit"]', form);
+      var submitLabel = PC.$('[data-submit-label]', submitBtn);
+      var cta = PC.$('[data-studio-cta]', form);
+      var note = PC.$('[data-form-note]', form);
+      var result = PC.$('[data-brand-result]', form);
+      var connected = false;
+      var sending = false;
+
+      var setMode = function (cfg) {
+        connected = Boolean(cfg);
+        form.classList.toggle('is-connected', connected);
+        PC.$$('[data-connected-only]', form).forEach(function (el) {
+          el.hidden = !connected;
+        });
+        PC.$$('[data-required-when-connected]', form).forEach(function (el) {
+          el.required = connected;
+        });
+        if (cta) {
+          // Envoi direct possible : le lien vers le devis détaillé devient l'action secondaire.
+          cta.classList.toggle('btn--accent', !connected);
+          cta.classList.toggle('btn--outline-light', connected);
+          PC.$('[data-cta-label]', cta).textContent = cta.getAttribute(connected ? 'data-label-connected' : 'data-label-offline');
+        }
+        if (note) note.textContent = note.getAttribute(connected ? 'data-note-connected' : 'data-note-offline');
+        if (attach) attach.setConfig(cfg);
+      };
+      var ready = PC.api(endpoint).then(function (cfg) {
+        setMode(cfg);
+        if (cfg) idempotence(form, false);
+        return cfg;
+      });
+
+      var fields = [
+        {
+          el: form.nom,
+          err: PC.$('[data-error-for="nom"]', form),
+          check: function () {
+            return form.nom.value.trim() ? '' : 'Indiquez votre nom.';
+          },
+        },
+        {
+          el: form.telephone,
+          err: PC.$('[data-error-for="telephone"]', form),
+          check: function () {
+            var v = form.telephone.value.trim();
+            if (!v) return 'Indiquez un numéro de téléphone pour être rappelé.';
+            return /^[+()\d\s.-]{8,20}$/.test(v) && (v.match(/\d/g) || []).length >= 8 ? '' : 'Le numéro de téléphone semble incomplet.';
+          },
+        },
+        {
+          el: form.email,
+          err: PC.$('[data-error-for="email"]', form),
+          check: function () {
+            var v = form.email.value.trim();
+            return !v || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? '' : 'L’adresse e-mail semble incorrecte.';
+          },
+        },
+      ];
+      var show = function (f, msg) {
+        if (!f.err) return;
+        f.err.hidden = !msg;
+        PC.$('span', f.err).textContent = msg;
+        if (msg) f.el.setAttribute('aria-invalid', 'true');
+        else f.el.removeAttribute('aria-invalid');
+      };
+      form.addEventListener('input', function (e) {
+        fields.forEach(function (f) {
+          if (f.el === e.target && f.el.getAttribute('aria-invalid')) show(f, f.check());
+        });
+      });
+
+      var summary = function (list, intro) {
+        var ul = PC.$('ul', errorsBox);
+        ul.innerHTML = '';
+        errorsIntro.textContent = intro || errorsIntroDefault;
+        list.forEach(function (it) {
+          var li = document.createElement('li');
+          if (it.el) {
+            var a = document.createElement('a');
+            a.href = '#' + it.el.id;
+            a.textContent = it.msg;
+            a.addEventListener('click', function (ev) {
+              ev.preventDefault();
+              it.el.focus();
+            });
+            li.appendChild(a);
+          } else li.textContent = it.msg;
+          ul.appendChild(li);
+        });
+        errorsBox.hidden = false;
+        errorsBox.focus();
+      };
+
+      var setSending = function (on) {
+        sending = on;
+        submitBtn.disabled = on;
+        if (on) submitBtn.setAttribute('aria-busy', 'true');
+        else submitBtn.removeAttribute('aria-busy');
+        submitLabel.textContent = on ? 'Envoi en cours…' : submitBtn.getAttribute('data-label-connected');
+        if (attach) attach.setBusy(on);
+      };
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (sending) return;
+        ready.then(function () {
+          if (!connected) {
+            // Sans service d'envoi : la demande se poursuit dans le formulaire de devis.
+            if (cta) location.href = cta.href;
+            return;
+          }
+          var list = [];
+          fields.forEach(function (f) {
+            var msg = f.check();
+            show(f, msg);
+            if (msg) list.push({ el: f.el, msg: msg });
+          });
+          if (attach && attach.hasErrors()) list.push({ msg: 'Retirez ou remplacez les fichiers signalés dans la liste des pièces jointes.' });
+          if (list.length) {
+            summary(list);
+            return;
+          }
+          errorsBox.hidden = true;
+          idempotence(form, false);
+          setSending(true);
+          PC.sendForm(endpoint, form, attach).then(function (res) {
+            setSending(false);
+            if (res.data && res.data.ok) {
+              PC.$('[data-result-ref]', result).textContent = res.data.id;
+              PC.$('[data-result-text]', result).textContent =
+                res.data.message + (res.data.notified ? '' : ' Pour un traitement rapide, vous pouvez aussi appeler le ' + phone + '.');
+              form.classList.add('is-sent');
+              result.hidden = false;
+              result.focus();
+              idempotence(form, true);
+              return;
+            }
+            var errs = (res.data && res.data.fields) || {};
+            var list2 = [];
+            Object.keys(errs).forEach(function (name) {
+              var f = fields.filter(function (x) {
+                return x.el && x.el.name === name;
+              })[0];
+              if (f) show(f, errs[name]);
+              list2.push({ el: f ? f.el : null, msg: errs[name] });
+            });
+            if (attach) attach.serverErrors((res.data && res.data.files) || []);
+            summary(list2, PC.sendError(res, phone));
+          });
+        });
+      });
+
+      var again = PC.$('[data-brand-again]', form);
+      if (again) {
+        again.addEventListener('click', function () {
+          form.classList.remove('is-sent');
+          result.hidden = true;
+          if (attach) attach.clear();
+          var name = PC.$('[data-studio-name]', form);
+          if (name) name.focus();
+        });
+      }
+    });
   });
 })(window.PC);
 

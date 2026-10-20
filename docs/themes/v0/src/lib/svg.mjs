@@ -83,9 +83,22 @@ function printLayer(finish, g, o, uid, cx) {
       const tp = `M${n(cx - t.r - 40)} ${n(t.y)}L${t.d.slice(1)}L${n(cx + t.r + 40)} ${n(t.y)}`;
       // En mode « live » (atelier de personnalisation), la couleur vient de la variable CSS --print.
       const paint = o.live ? ' class="js-print"' : ` fill="${ink}"`;
+      // Logo du client (atelier, aperçu local) : zone haute si un nom est saisi, zone pleine sinon.
+      let logo = '';
+      if (o.live) {
+        const a = g.arc(0.405, 0);
+        const b = g.arc(0.665, 0);
+        const w = n(t.r * 1.15);
+        const yTop = a.y + a.r * K + 2;
+        const yText = t.y + t.r * K - fs * 0.95 - 3;
+        const yFull = b.y + b.r * K - 3;
+        const box = (y2) => `${n(cx - w / 2)} ${n(yTop)} ${w} ${n(y2 - yTop)}`;
+        logo = `<image class="js-brand-logo" x="${n(cx - w / 2)}" y="${n(yTop)}" width="${w}" height="${n(yText - yTop)}" preserveAspectRatio="xMidYMid meet" data-box-top="${box(yText)}" data-box-full="${box(yFull)}"/>`;
+      }
       return (
         `<path d="${g.band(0.36, 0.385)}"${paint}/>` +
         `<path d="${g.band(0.68, 0.705)}"${paint}/>` +
+        logo +
         `<path id="tp-${uid}" d="${tp}" fill="none"/>` +
         `<text class="cup__brand${o.live ? ' js-print' : ''}"${o.live ? '' : ` fill="${ink}"`} font-size="${fs}" font-weight="700" letter-spacing="${n(fs * 0.06)}" text-anchor="middle" data-max="${n(t.r * 1.45)}">` +
         `<textPath href="#tp-${uid}" startOffset="50%"${o.live ? ' class="js-brand-text"' : ''}>${o.brandText ?? 'VOTRE MARQUE'}</textPath></text>`
@@ -309,6 +322,16 @@ const ICONS = {
   printer:
     '<path d="M7 9V3.5h10V9"/><rect x="3.5" y="9" width="17" height="7.5" rx="2"/><path d="M7 14h10v6.5H7z"/>',
   alert: '<path d="M12 4 21 19.5H3z"/><path d="M12 10v4.5M12 17.2v.2"/>',
+  paperclip:
+    '<path d="m19.2 11.6-7.4 7.4a4.8 4.8 0 0 1-6.8-6.8l7.9-7.9a3.2 3.2 0 0 1 4.5 4.5l-7.9 7.9a1.6 1.6 0 0 1-2.3-2.3l7.2-7.2"/>',
+  upload: '<path d="M12 15.5V4.5M7.5 9 12 4.5 16.5 9"/><path d="M4.5 14.5v3.7a2.3 2.3 0 0 0 2.3 2.3h10.4a2.3 2.3 0 0 0 2.3-2.3v-3.7"/>',
+  file: '<path d="M13.5 3.5H7.2a1.7 1.7 0 0 0-1.7 1.7v13.6a1.7 1.7 0 0 0 1.7 1.7h9.6a1.7 1.7 0 0 0 1.7-1.7V8.5z"/><path d="M13.5 3.5v5h5"/>',
+  'ice-cream': '<path d="M6.8 11.5h10.4l-1.5 8.1a1.4 1.4 0 0 1-1.4 1.1H9.7a1.4 1.4 0 0 1-1.4-1.1z"/><path d="M7.8 11.5a4.2 4.2 0 0 1 8.4 0"/><path d="M12 7.3V5.5"/>',
+  bag: '<path d="M6.5 4h11l1 16.5h-13z"/><path d="M9.5 4v1.8a2.5 2.5 0 0 0 5 0V4"/>',
+  tray: '<rect x="3.5" y="5.5" width="17" height="13" rx="1.6"/><path d="M7 9.5h5.5M7 12.5h10M7 15.5h7.5"/>',
+  chat: '<path d="M5.2 19.4 6.3 16A7.6 7.6 0 1 1 9 18.6z"/><path d="M9.3 9.6c.3 2.4 2 4.2 4.6 4.8l.9-1.2 1.7.8-.4 1.4c-3.6.3-7.3-3.4-7.2-7l1.4-.4.8 1.7z"/>',
+  trash:
+    '<path d="M4.5 7h15M9.5 7V4.8c0-.4.3-.8.8-.8h3.4c.5 0 .8.4.8.8V7M6.5 7l.9 12.2a1.5 1.5 0 0 0 1.5 1.3h6.2a1.5 1.5 0 0 0 1.5-1.3L17.5 7"/><path d="M10.2 11v5.5M13.8 11v5.5"/>',
 };
 
 export const icon = (name, cls = '') =>
